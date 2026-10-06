@@ -1,0 +1,30 @@
+# ==============================================================================
+# DATI PERSONALI E SENSIBILI (NON PUBBLICARE SU GITHUB)
+# ==============================================================================
+data.json
+*.private.json
+*.local.json
+
+# Log e registri
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# File temporanei e di sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+
+# Directory IDE ed editor di codice
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# File di archivio / backup
+*.zip
+*.tar.gz
+*.7z

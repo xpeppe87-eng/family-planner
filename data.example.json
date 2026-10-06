@@ -1,0 +1,80 @@
+{
+  "events": [
+    {
+      "id": "evt-example-1",
+      "title": "Esempio: Spesa settimanale",
+      "date": "2026-10-10",
+      "startTime": "10:00",
+      "endTime": "11:30",
+      "members": ["papa", "mamma"],
+      "place": "Supermercato",
+      "driver": "Insieme in auto",
+      "category": "Famiglia",
+      "notes": "Acquistare frutta, verdura e latte"
+    }
+  ],
+  "places": [
+    {
+      "id": "p1",
+      "name": "Casa",
+      "address": "Via Esempio 1",
+      "note": "Abitazione principale"
+    },
+    {
+      "id": "p2",
+      "name": "Scuola Primaria",
+      "address": "Via Roma 10",
+      "note": "Scuola elementare"
+    },
+    {
+      "id": "p3",
+      "name": "Centro Sportivo",
+      "address": "Viale dello Sport 5",
+      "note": "Attività sportive pomeridiane"
+    }
+  ],
+  "members": {
+    "papa": {
+      "id": "papa",
+      "name": "Papà",
+      "fullName": "Papà",
+      "role": "Capofamiglia",
+      "color": "#38bdf8",
+      "glow": "rgba(56, 189, 248, 0.5)",
+      "ringClass": "ring-blue",
+      "avatar": "assets/papa.png"
+    },
+    "mamma": {
+      "id": "mamma",
+      "name": "Mamma",
+      "fullName": "Mamma",
+      "role": "Super Mamma",
+      "color": "#fb7185",
+      "glow": "rgba(251, 113, 133, 0.5)",
+      "ringClass": "ring-pink",
+      "avatar": "assets/mamma.png"
+    },
+    "luca": {
+      "id": "luca",
+      "name": "Figlio 1",
+      "fullName": "Figlio 1 (8 anni)",
+      "role": "Figlio maggiore",
+      "color": "#34d399",
+      "glow": "rgba(52, 211, 153, 0.5)",
+      "ringClass": "ring-green",
+      "avatar": "assets/luca.png"
+    },
+    "sofia": {
+      "id": "sofia",
+      "name": "Figlia 2",
+      "fullName": "Figlia 2 (5 anni)",
+      "role": "Piccola di casa",
+      "color": "#fbbf24",
+      "glow": "rgba(251, 191, 36, 0.5)",
+      "ringClass": "ring-yellow",
+      "avatar": "assets/sofia.png"
+    }
+  },
+  "deletedMembers": [],
+  "lastUpdated": 0
+}

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <radialGradient id="bgNonna" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </radialGradient>
+    <linearGradient id="hairNonna" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="skinNonna" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fed7aa"/>
+      <stop offset="100%" stop-color="#fbcfe8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="50" fill="url(#bgNonna)"/>
+  <!-- Body/Dress -->
+  <path d="M22 96 C22 75 35 70 50 70 C65 70 78 75 78 96 Z" fill="#ec4899"/>
+  <!-- Pearl necklace -->
+  <path d="M38 74 Q50 82 62 74" fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="1 4" stroke-linecap="round"/>
+  <!-- Hair bun -->
+  <circle cx="50" cy="22" r="10" fill="url(#hairNonna)"/>
+  <!-- Head -->
+  <ellipse cx="50" cy="50" rx="19" ry="23" fill="url(#skinNonna)"/>
+  <!-- Hair front -->
+  <path d="M30 42 C28 26 40 22 50 26 C60 22 72 26 70 42 C65 32 58 28 50 30 C42 28 35 32 30 42 Z" fill="url(#hairNonna)"/>
+  <!-- Glasses -->
+  <circle cx="42" cy="47" r="6" fill="none" stroke="#f59e0b" stroke-width="1.8"/>
+  <circle cx="58" cy="47" r="6" fill="none" stroke="#f59e0b" stroke-width="1.8"/>
+  <line x1="48" y1="47" x2="52" y2="47" stroke="#f59e0b" stroke-width="1.8"/>
+  <!-- Eyes -->
+  <circle cx="42" cy="47" r="2.2" fill="#1e293b"/>
+  <circle cx="58" cy="47" r="2.2" fill="#1e293b"/>
+  <!-- Rosy cheeks -->
+  <circle cx="36" cy="54" r="3.5" fill="#f43f5e" opacity="0.3"/>
+  <circle cx="64" cy="54" r="3.5" fill="#f43f5e" opacity="0.3"/>
+  <!-- Smile -->
+  <path d="M44 61 Q50 66 56 61" fill="none" stroke="#be185d" stroke-width="2" stroke-linecap="round"/>
+</svg>

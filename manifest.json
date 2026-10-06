@@ -1,0 +1,25 @@
+{
+  "name": "Family Planner - La nostra famiglia",
+  "short_name": "FamilyPlanner",
+  "description": "Applicazione per la gestione e sincronizzazione degli impegni familiari",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "assets/logo_gold_gv.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/logo_gold_gv.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

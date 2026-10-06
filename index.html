@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07090e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FamilyPlanner">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/logo_gold_gv.png">
+  <link rel="icon" type="image/png" href="assets/logo_gold_gv.png">
+  <title>Family Planner - La nostra famiglia, sempre organizzata</title>
+  <meta name="description" content="Applicazione elegante per la gestione e sincronizzazione degli impegni familiari per Papà, Mamma, Domenico e Alessandra.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Background Aura Lights -->
+  <div class="aura-container">
+    <div class="aura aura-top"></div>
+    <div class="aura aura-blue"></div>
+    <div class="aura aura-purple"></div>
+    <div class="aura aura-bottom"></div>
+  </div>
+
+  <!-- Main App Viewport (Native Fullscreen Web App) -->
+  <div class="app-viewport" id="appViewport">
+    
+    <!-- Screen Container -->
+    <div class="screen-content" id="screenContent">
+
+      <!-- Main Scrollable Dashboard -->
+      <main class="dashboard-scroll">
+
+        <!-- Brand Header with 3D Monogram Logo & Quick Share Action -->
+        <section class="brand-header">
+          <div class="brand-top-bar">
+            <div class="brand-top-spacer"></div>
+            <div class="logo-wrapper" id="logoEmblem">
+              <img src="assets/logo_gold_gv.png" alt="GV Monogram Logo" class="brand-logo" id="brandLogoImg">
+              <div class="logo-reflection"></div>
+            </div>
+            <button class="top-action-btn" id="headerShareBtn" title="Sincronizza / QR / Condividi" aria-label="Sincronizza">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+            </button>
+          </div>
+          <h1 class="brand-title">Family Planner</h1>
+          <p class="brand-tagline">La nostra famiglia, sempre organizzata.</p>
+        </section>
+
+        <!-- Active Filter Badge (shows when a member is selected) -->
+        <div class="filter-indicator" id="filterIndicator" style="display: none;">
+          <span id="filterText">Filtrato per: <strong>Papà</strong></span>
+          <button class="clear-filter-btn" id="clearFilterBtn" title="Mostra tutti gli impegni">Mostra tutti &times;</button>
+        </div>
+
+        <!-- Family Members Bar -->
+        <section class="family-members-section" aria-label="Membri della Famiglia">
+          <div class="family-header-row">
+            <span class="family-title-text">La Famiglia</span>
+            <div class="family-actions-group">
+              <button class="btn-add-member-shortcut" id="quickAddMemberBtn" title="Aggiungi nuovo membro">
+                <span>+ Membro</span>
+              </button>
+              <button class="btn-remove-mode" id="btnToggleRemoveMemberMode" title="Rimuovi avatar dalla barra" aria-label="Rimuovi avatar dalla barra">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span id="removeModeBtnText">Rimuovi</span>
+              </button>
+              <button class="btn-edit-names" id="quickEditNamesBtn" title="Modifica i nomi dei componenti">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M12 20h9"></path>
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                </svg>
+                <span>Nomi</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Banner guida interattivo per la rimozione avatar -->
+          <div class="remove-mode-banner" id="removeModeBanner" style="display: none;">
+            <div class="remove-banner-content">
+              <span class="remove-banner-icon">🗑️</span>
+              <span class="remove-banner-text">Tocca un avatar o la <strong>✕</strong> rossa per rimuoverlo dalla barra</span>
+            </div>
+            <button type="button" class="btn-done-remove" id="btnDoneRemoveMode">Fatto ✓</button>
+          </div>
+
+          <div class="members-row" id="membersRow">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </section>
+
+        <!-- Quick Summary Today Banner -->
+        <section class="today-banner" id="todayBanner" onclick="window.app.openModal('calendarModal')">
+          <div class="today-left">
+            <span class="today-pill" id="todayDatePill">Oggi</span>
+            <div class="today-text-group">
+              <span class="today-count" id="todayCountText">4 impegni in programma</span>
+              <span class="today-next" id="todayNextText">Prossimo: Ore 16:30 Calcio Domenico</span>
+            </div>
+          </div>
+          <div class="today-right">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </section>
+
+        <!-- The 6 Main Glassmorphism Cards Grid (2x3) -->
+        <section class="features-grid" aria-label="Funzionalità principali">
+
+          <!-- Card 1: Calendario -->
+          <div class="glass-card card-calendar" id="cardCalendar" tabindex="0" role="button" aria-label="Apri Calendario">
+            <div class="card-glow"></div>
+            <div class="card-icon-wrap icon-purple">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="18" rx="4" fill="url(#gradPurple)" fill-opacity="0.2" stroke="url(#gradPurple)" stroke-width="2"/>
+                <path d="M3 10H21" stroke="url(#gradPurple)" stroke-width="2"/>
+                <path d="M8 2V5M16 2V5" stroke="url(#gradPurple)" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="8" cy="14" r="1.2" fill="#fff"/>
+                <circle cx="12" cy="14" r="1.2" fill="#fff"/>
+                <circle cx="16" cy="14" r="1.2" fill="#fff"/>
+                <circle cx="8" cy="18" r="1.2" fill="#fff"/>
+                <circle cx="12" cy="18" r="1.2" fill="#fff"/>
+                <defs>
+                  <linearGradient id="gradPurple" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#c084fc"/>
+                    <stop offset="1" stop-color="#9333ea"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2 class="card-title">Calendario</h2>
+            <p class="card-subtitle">Tutti gli impegni</p>
+          </div>
+
+          <!-- Card 2: Aggiungi impegno -->
+          <div class="glass-card card-add" id="cardAddEvent" tabindex="0" role="button" aria-label="Aggiungi nuovo impegno">
+            <div class="card-glow"></div>
+            <div class="card-icon-wrap icon-blue">
+              <div class="plus-circle-icon">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" fill="url(#gradBlue)" fill-opacity="0.95"/>
+                  <path d="M12 8V16M8 12H16" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+                  <defs>
+                    <linearGradient id="gradBlue" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#38bdf8"/>
+                      <stop offset="1" stop-color="#0284c7"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+            </div>
+            <h2 class="card-title">Aggiungi impegno</h2>
+            <p class="card-subtitle">Nuovo evento</p>
+          </div>
+
+          <!-- Card 3: Familiari -->
+          <div class="glass-card card-family" id="cardFamily" tabindex="0" role="button" aria-label="Gestisci Familiari">
+            <div class="card-glow"></div>
+            <div class="card-icon-wrap icon-cyan">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                <path d="M17 21V19C17 17.34 15.66 16 14 16H6C4.34 16 3 17.34 3 19V21" stroke="url(#gradCyan)" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="10" cy="8" r="4" stroke="url(#gradCyan)" stroke-width="2"/>
+                <path d="M21 21V19C21 17.67 20.08 16.55 18.82 16.15" stroke="url(#gradCyan)" stroke-width="2" stroke-linecap="round"/>
+                <path d="M16 4.13C17.18 4.54 18 5.67 18 7C18 8.33 17.18 9.46 16 9.87" stroke="url(#gradCyan)" stroke-width="2" stroke-linecap="round"/>
+                <defs>
+                  <linearGradient id="gradCyan" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#38bdf8"/>
+                    <stop offset="1" stop-color="#06b6d4"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2 class="card-title">Familiari</h2>
+            <p class="card-subtitle">Gestisci i profili</p>
+          </div>
+
+          <!-- Card 4: Luoghi -->
+          <div class="glass-card card-places" id="cardPlaces" tabindex="0" role="button" aria-label="Gestisci Luoghi">
+            <div class="card-glow"></div>
+            <div class="card-icon-wrap icon-pink">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                <path d="M12 21C16 16.5 19 12.5 19 9A7 7 0 1 0 5 9C5 12.5 8 16.5 12 21Z" fill="url(#gradPink)" fill-opacity="0.9"/>
+                <circle cx="12" cy="9" r="2.8" fill="#ffffff"/>
+                <defs>
+                  <linearGradient id="gradPink" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#fb7185"/>
+                    <stop offset="1" stop-color="#e11d48"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2 class="card-title">Luoghi</h2>
+            <p class="card-subtitle">Casa, scuola, ecc.</p>
+          </div>
+
+          <!-- Card 5: Analizza giornata -->
+          <div class="glass-card card-analyzer" id="cardAnalyzer" tabindex="0" role="button" aria-label="Analizza giornata e risolvi conflitti">
+            <div class="card-glow"></div>
+            <div class="card-icon-wrap icon-magic">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+                <path d="M15 4L20 9L7 22L2 17L15 4Z" fill="url(#gradMagic)" fill-opacity="0.3" stroke="url(#gradMagic)" stroke-width="2" stroke-linecap="round"/>
+                <path d="M11 8L16 13" stroke="url(#gradMagic)" stroke-width="2"/>
+                <path d="M18 2V4M17 3H19" stroke="#f472b6" stroke-width="2" stroke-linecap="round"/>
+                <path d="M6 3V5M5 4H7" stroke="#c084fc" stroke-width="2" stroke-linecap="round"/>
+                <path d="M21 12V14M20 13H22" stroke="#a855f7" stroke-width="2" stroke-linecap="round"/>
+                <defs>
+                  <linearGradient id="gradMagic" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#d946ef"/>
+                    <stop offset="1" stop-color="#8b5cf6"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2 class="card-title">Analizza giornata</h2>
+            <p class="card-subtitle">Trova la soluzione</p>
+          </div>
+
+          <!-- Card 6: Impostazioni -->
+          <div class="glass-card card-settings" id="cardSettings" tabindex="0" role="button" aria-label="Impostazioni e Sincronizzazione">
+            <div class="card-glow"></div>
+            <div class="card-icon-wrap icon-slate">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="url(#gradSlate)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                <defs>
+                  <linearGradient id="gradSlate" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#94a3b8"/>
+                    <stop offset="1" stop-color="#cbd5e1"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2 class="card-title">Impostazioni</h2>
+            <p class="card-subtitle">Preferenze app</p>
+          </div>
+
+        </section>
+
+        <!-- Up Next Feed Section -->
+        <section class="up-next-section">
+          <div class="section-header">
+            <h3>Prossimi Impegni</h3>
+            <button class="see-all-btn" id="seeAllEventsBtn">Vedi tutti</button>
+          </div>
+          <div class="events-feed-list" id="upcomingEventsFeed">
+            <!-- Dynamic events populated by JS -->
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Bottom Quick Navigation Bar -->
+      <nav class="bottom-nav-bar">
+        <button class="nav-item active" id="navHomeBtn" title="Home">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span>Home</span>
+        </button>
+        <button class="nav-item" id="navCalBtn" title="Calendario">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <span>Calendario</span>
+        </button>
+        <button class="nav-item nav-action-center" id="navAddBtn" title="Nuovo Impegno">
+          <div class="nav-plus-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+        </button>
+        <button class="nav-item" id="navAnalyzeBtn" title="Analizza">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>Analizza</span>
+        </button>
+        <button class="nav-item" id="navShareBtn" title="Condividi">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+          <span>Famiglia</span>
+        </button>
+      </nav>
+
+    </div><!-- /screen-content -->
+
+  </div><!-- /app-viewport -->
+
+
+  <!-- ============================================== -->
+  <!-- MODAL 1: CALENDARIO COMPLETO (TUTTI GLI IMPEGNI) -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="calendarModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Calendario Famiglia</h2>
+          <p class="modal-subtitle-text">Tutti gli impegni sincronizzati</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <!-- View Selector (Mese, Settimana, Giorno, Lista) -->
+      <div class="cal-controls">
+        <div class="cal-nav">
+          <button class="cal-arrow-btn" id="calPrevBtn">&lt;</button>
+          <span class="cal-current-label" id="calCurrentLabel">Settembre 2026</span>
+          <button class="cal-arrow-btn" id="calNextBtn">&gt;</button>
+          <button class="cal-today-btn" id="calTodayBtn">Oggi</button>
+        </div>
+        <div class="cal-view-tabs">
+          <button class="cal-tab active" data-view="agenda">Agenda</button>
+          <button class="cal-tab" data-view="month">Mese</button>
+          <button class="cal-tab" data-view="day">Giorno</button>
+        </div>
+      </div>
+
+      <!-- Filter chips inside modal -->
+      <div class="modal-member-filters" id="modalMemberFilters">
+        <!-- Populated dynamically by JS -->
+      </div>
+
+      <!-- Calendar Body -->
+      <div class="modal-body-scroll">
+        <!-- Month View Grid -->
+        <div class="calendar-month-container" id="calendarMonthContainer" style="display: none;">
+          <div class="calendar-weekdays">
+            <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
+          </div>
+          <div class="calendar-days-grid" id="calendarDaysGrid"></div>
+        </div>
+
+        <!-- Agenda / List View -->
+        <div class="calendar-agenda-container" id="calendarAgendaContainer">
+          <div class="agenda-timeline" id="agendaTimeline"></div>
+        </div>
+
+        <!-- Day View -->
+        <div class="calendar-day-container" id="calendarDayContainer" style="display: none;">
+          <div class="day-view-hours" id="dayViewHours"></div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="calAddEventBtn">
+          <span>+ Nuovo Impegno</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL 2: AGGIUNGI / MODIFICA IMPEGNO           -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="addEventModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="eventModalTitle">Nuovo Impegno</h2>
+          <p class="modal-subtitle-text">Organizza e assegna l'attività</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <form id="eventForm" class="styled-form">
+          <input type="hidden" id="eventId">
+
+          <!-- Titolo -->
+          <div class="form-group">
+            <label for="eventTitle">Cosa c'è in programma? *</label>
+            <input type="text" id="eventTitle" placeholder="Es. Calcio, Visita Dentista, Spesa..." required>
+          </div>
+
+          <!-- Chi partecipa (Multi-selezione) -->
+          <div class="form-group">
+            <label>Chi partecipa? (Seleziona uno o più membri) *</label>
+            <div class="participant-selector" id="participantSelector">
+              <!-- Populated dynamically by JS -->
+            </div>
+          </div>
+
+          <!-- Data e Orari -->
+          <div class="form-row">
+            <div class="form-group col-half">
+              <label for="eventDate">Data *</label>
+              <input type="date" id="eventDate" required>
+            </div>
+            <div class="form-group col-quarter">
+              <label for="eventStartTime">Inizio *</label>
+              <input type="time" id="eventStartTime" value="16:30" required>
+            </div>
+            <div class="form-group col-quarter">
+              <label for="eventEndTime">Fine</label>
+              <input type="time" id="eventEndTime" value="17:30">
+            </div>
+          </div>
+
+          <!-- Chi accompagna / Logistica -->
+          <div class="form-group">
+            <label for="eventDriver">Chi accompagna o riprende?</label>
+            <select id="eventDriver">
+              <option value="">Nessuno (o non serve passaggio)</option>
+              <option value="Papà">Papà accompagna e riprende</option>
+              <option value="Mamma">Mamma accompagna e riprende</option>
+              <option value="Papà accompagna, Mamma riprende">Papà accompagna, Mamma riprende</option>
+              <option value="Mamma accompagna, Papà riprende">Mamma accompagna, Papà riprende</option>
+              <option value="Nonni">I Nonni si occupano del passaggio</option>
+              <option value="Tutti insieme">Tutti insieme</option>
+            </select>
+          </div>
+
+          <!-- Luogo -->
+          <div class="form-group">
+            <label for="eventPlace">Luogo</label>
+            <div class="input-with-button">
+              <select id="eventPlaceSelect">
+                <option value="">-- Seleziona luogo frequente --</option>
+                <option value="Casa">Casa</option>
+                <option value="Scuola Primaria">Scuola Primaria (Domenico)</option>
+                <option value="Scuola Materna">Scuola Materna (Alessandra)</option>
+                <option value="Campo Sportivo / Palestra">Campo Sportivo / Palestra</option>
+                <option value="Studio Dentistico / Medico">Studio Medico</option>
+                <option value="Casa dei Nonni">Casa dei Nonni</option>
+                <option value="Altro">Altro (scrivi sotto)...</option>
+              </select>
+              <input type="text" id="eventCustomPlace" placeholder="Oppure inserisci indirizzo o luogo">
+            </div>
+          </div>
+
+          <!-- Categoria -->
+          <div class="form-group">
+            <label>Categoria</label>
+            <div class="category-chips" id="categoryChips">
+              <button type="button" class="cat-chip active" data-cat="Scuola">Scuola</button>
+              <button type="button" class="cat-chip" data-cat="Sport">Sport</button>
+              <button type="button" class="cat-chip" data-cat="Salute">Salute</button>
+              <button type="button" class="cat-chip" data-cat="Famiglia">Famiglia</button>
+              <button type="button" class="cat-chip" data-cat="Lavoro">Lavoro</button>
+              <button type="button" class="cat-chip" data-cat="Tempo Libero">Svago</button>
+            </div>
+          </div>
+
+          <!-- Note -->
+          <div class="form-group">
+            <label for="eventNotes">Note o promemoria (es. portare scarpe di ricambio)</label>
+            <textarea id="eventNotes" rows="2" placeholder="Note per la famiglia..."></textarea>
+          </div>
+
+          <!-- Conflict Warning Card (Real-time AI logic) -->
+          <div class="conflict-alert-box" id="formConflictAlert" style="display: none;">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+              <strong>Attenzione Sovrapposizione!</strong>
+              <p id="formConflictMessage">C'è già un impegno registrato a questo orario.</p>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="deleteEventBtn" style="display: none;">Elimina</button>
+            <button type="submit" class="btn btn-primary" id="saveEventBtn">Salva Impegno</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL 3: FAMILIARI (GESTIONE PROFILI)          -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="familyModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Profili di Famiglia</h2>
+          <p class="modal-subtitle-text">4 Membri attivi e sincronizzati</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px;">
+          <button class="btn btn-primary btn-small" id="openAddMemberFromFamilyModalBtn">
+            + Nuovo Membro
+          </button>
+          <button class="btn btn-secondary btn-small" id="openEditNamesFromFamilyModalBtn">
+            ✏️ Modifica Nomi
+          </button>
+        </div>
+
+        <div class="family-cards-list" id="familyProfilesList">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="family-stats-card">
+          <h3>Riepilogo Impegni Settimanali</h3>
+          <div class="stats-bars-container" id="familyStatsBars">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL: MODIFICA NOMI E PROFILI FAMIGLIA        -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="editNamesModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Modifica Nomi Famiglia</h2>
+          <p class="modal-subtitle-text">Personalizza i nomi dei 4 componenti</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <form id="editNamesForm" class="styled-form">
+
+          <!-- Papà -->
+          <div class="edit-member-row-card">
+            <div class="em-avatar ring-blue">
+              <img src="assets/papa.png" alt="Papà">
+            </div>
+            <div class="em-inputs">
+              <label for="nameInput-papa">Nome visualizzato (avatar):</label>
+              <input type="text" id="nameInput-papa" placeholder="Papà" required>
+              <label for="roleInput-papa">Nome completo o ruolo:</label>
+              <input type="text" id="roleInput-papa" placeholder="Giuseppe">
+            </div>
+          </div>
+
+          <!-- Mamma -->
+          <div class="edit-member-row-card">
+            <div class="em-avatar ring-pink">
+              <img src="assets/mamma.png" alt="Mamma">
+            </div>
+            <div class="em-inputs">
+              <label for="nameInput-mamma">Nome visualizzato (avatar):</label>
+              <input type="text" id="nameInput-mamma" placeholder="Mamma" required>
+              <label for="roleInput-mamma">Nome completo o ruolo:</label>
+              <input type="text" id="roleInput-mamma" placeholder="Veronica">
+            </div>
+          </div>
+
+          <!-- Domenico (ex Luca) -->
+          <div class="edit-member-row-card">
+            <div class="em-avatar ring-green">
+              <img src="assets/luca.png" alt="Domenico">
+            </div>
+            <div class="em-inputs">
+              <label for="nameInput-luca">Nome visualizzato (avatar):</label>
+              <input type="text" id="nameInput-luca" placeholder="Domenico" required>
+              <label for="roleInput-luca">Nome completo o ruolo:</label>
+              <input type="text" id="roleInput-luca" placeholder="Domenico (8 anni)">
+            </div>
+          </div>
+
+          <!-- Alessandra (ex Sofia) -->
+          <div class="edit-member-row-card">
+            <div class="em-avatar ring-yellow">
+              <img src="assets/sofia.png" alt="Alessandra">
+            </div>
+            <div class="em-inputs">
+              <label for="nameInput-sofia">Nome visualizzato (avatar):</label>
+              <input type="text" id="nameInput-sofia" placeholder="Alessandra" required>
+              <label for="roleInput-sofia">Nome completo o ruolo:</label>
+              <input type="text" id="roleInput-sofia" placeholder="Alessandra (5 anni)">
+            </div>
+          </div>
+
+          <div class="form-actions" style="margin-top: 14px;">
+            <button type="button" class="btn btn-secondary" data-close-modal>Annulla</button>
+            <button type="submit" class="btn btn-primary" id="saveNamesSubmitBtn">Salva Modifiche</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- ============================================== -->
+  <!-- MODAL: AGGIUNGI / MODIFICA MEMBRO FAMIGLIA     -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="addMemberModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="memberModalTitle">Nuovo Membro Famiglia</h2>
+          <p class="modal-subtitle-text" id="memberModalSubtitle">Aggiungi un familiare con il suo avatar</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <form id="addMemberForm" class="styled-form">
+          <input type="hidden" id="editMemberId" value="">
+
+          <!-- Live Avatar Preview with Glowing Ring -->
+          <div class="avatar-preview-box">
+            <div class="avatar-preview-ring" id="newMemberAvatarPreviewRing" style="border-color: #38bdf8; box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);">
+              <img id="newMemberAvatarPreviewImg" src="assets/avatar_nonno.png" alt="Anteprima Avatar">
+            </div>
+            <span class="preview-hint" id="newMemberAvatarHint">Anteprima Avatar</span>
+          </div>
+
+          <!-- Nome visualizzato -->
+          <div class="form-group">
+            <label for="newMemberName">Nome visualizzato (sotto l'avatar) *</label>
+            <input type="text" id="newMemberName" placeholder="Es. Nonno, Nonna, Matteo, Toby..." required>
+          </div>
+
+          <!-- Ruolo / Nome completo -->
+          <div class="form-group">
+            <label for="newMemberRole">Ruolo o nome completo (opzionale)</label>
+            <input type="text" id="newMemberRole" placeholder="Es. Nonno Antonio, Zio, Cucciolo...">
+          </div>
+
+          <!-- Scelta Colore Anello Luminoso -->
+          <div class="form-group">
+            <label>Colore anello luminoso</label>
+            <div class="color-palette-selector" id="newMemberColorPalette">
+              <button type="button" class="color-dot-btn active" data-color="#38bdf8" style="background: #38bdf8;"></button>
+              <button type="button" class="color-dot-btn" data-color="#fb7185" style="background: #fb7185;"></button>
+              <button type="button" class="color-dot-btn" data-color="#34d399" style="background: #34d399;"></button>
+              <button type="button" class="color-dot-btn" data-color="#fbbf24" style="background: #fbbf24;"></button>
+              <button type="button" class="color-dot-btn" data-color="#a855f7" style="background: #a855f7;"></button>
+              <button type="button" class="color-dot-btn" data-color="#ec4899" style="background: #ec4899;"></button>
+              <button type="button" class="color-dot-btn" data-color="#f97316" style="background: #f97316;"></button>
+              <button type="button" class="color-dot-btn" data-color="#06b6d4" style="background: #06b6d4;"></button>
+            </div>
+          </div>
+
+          <!-- Scelta Avatar: Preset oppure Caricamento Foto -->
+          <div class="form-group">
+            <label>Scegli l'Avatar:</label>
+            
+            <!-- Upload custom photo button -->
+            <div class="upload-avatar-area">
+              <label class="btn btn-secondary btn-small upload-photo-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>Carica foto dal dispositivo</span>
+                <input type="file" id="newMemberPhotoUpload" accept="image/*" style="display: none;">
+              </label>
+              <span class="upload-or-text">oppure scegli tra i preset:</span>
+            </div>
+
+            <!-- Preset Avatar Grid -->
+            <div class="preset-avatars-grid" id="presetAvatarsGrid">
+              <button type="button" class="preset-avatar-item active" data-src="assets/avatar_nonno.png" title="Nonno">
+                <img src="assets/avatar_nonno.png" alt="Nonno">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/avatar_nonna.png" title="Nonna">
+                <img src="assets/avatar_nonna.png" alt="Nonna">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/avatar_ragazzo.png" title="Ragazzo">
+                <img src="assets/avatar_ragazzo.png" alt="Ragazzo">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/avatar_ragazza.png" title="Ragazza">
+                <img src="assets/avatar_ragazza.png" alt="Ragazza">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/avatar_bebe.png" title="Bebè">
+                <img src="assets/avatar_bebe.png" alt="Bebè">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/avatar_pet.png" title="Cucciolo / Cane">
+                <img src="assets/avatar_pet.png" alt="Cucciolo">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/papa.png" title="Papà stile">
+                <img src="assets/papa.png" alt="Papà">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/mamma.png" title="Mamma stile">
+                <img src="assets/mamma.png" alt="Mamma">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/luca.png" title="Domenico stile">
+                <img src="assets/luca.png" alt="Domenico">
+              </button>
+              <button type="button" class="preset-avatar-item" data-src="assets/sofia.png" title="Alessandra stile">
+                <img src="assets/sofia.png" alt="Alessandra">
+              </button>
+            </div>
+          </div>
+
+          <div class="form-actions member-form-actions" style="margin-top: 14px;">
+            <button type="button" class="btn btn-delete-member-modal" id="deleteMemberFromModalBtn" style="display: none;" title="Elimina questo profilo dalla famiglia">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>Rimuovi Membro</span>
+            </button>
+            <div class="modal-form-right-btns">
+              <button type="button" class="btn btn-secondary" data-close-modal>Annulla</button>
+              <button type="submit" class="btn btn-primary" id="saveMemberBtn">+ Aggiungi alla Famiglia</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL 4: LUOGHI (CASA, SCUOLA, ECC.)           -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="placesModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Luoghi Frequenti</h2>
+          <p class="modal-subtitle-text">Punti di interesse della famiglia</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <div class="places-list" id="placesList">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="add-place-box">
+          <h3>Aggiungi un nuovo luogo</h3>
+          <div class="form-group">
+            <input type="text" id="newPlaceName" placeholder="Nome luogo (es. Palestra Judo, Piscina)">
+          </div>
+          <div class="form-group">
+            <input type="text" id="newPlaceAddress" placeholder="Indirizzo (es. Via Roma 12)">
+          </div>
+          <button class="btn btn-secondary" id="saveNewPlaceBtn">+ Salva Luogo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL 5: ANALIZZA GIORNATA (SMART ASSISTANT)   -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="analyzerModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Smart Family Analyzer</h2>
+          <p class="modal-subtitle-text">Rilevamento conflitti e logistica</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <div class="analyzer-date-picker">
+          <label>Seleziona giorno da analizzare:</label>
+          <input type="date" id="analyzerDateInput">
+        </div>
+
+        <!-- Analyzer Result Card -->
+        <div class="smart-assistant-card" id="analyzerResultsCard">
+          <div class="assistant-badge">
+            <span class="sparkle-icon">✨</span> Analisi Logistica Intelligente
+          </div>
+
+          <div id="analyzerStatusPill" class="status-pill status-success">
+            Nessun conflitto rilevato
+          </div>
+
+          <div class="analyzer-section" id="analyzerConflictsSection">
+            <!-- Dynamic conflict cards or all-clear message -->
+          </div>
+
+          <div class="analyzer-section">
+            <h4 class="subhead">Piano Consigliato per Oggi:</h4>
+            <div class="solution-recommendations" id="analyzerRecommendations">
+              <!-- Dynamic plan -->
+            </div>
+          </div>
+
+          <div class="analyzer-actions">
+            <button class="btn btn-primary" id="sharePlanWhatsAppBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67Z"/>
+              </svg>
+              Invia Piano su WhatsApp Famiglia
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL 6: IMPOSTAZIONI & SINCRONIZZAZIONE       -->
+  <!-- ============================================== -->
+  <div class="modal-backdrop" id="settingsModal" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-drag-handle"></div>
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>Impostazioni & Condivisione</h2>
+          <p class="modal-subtitle-text">Sincronizza tra i 4 telefoni di famiglia</p>
+        </div>
+        <button class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+
+        <!-- Share & Sync Section -->
+        <div class="settings-group">
+          <div class="sync-status-badge" id="syncStatusBadge">
+            <span class="sync-dot"></span> <span id="syncStatusText">Server Famiglia: Sincronizzazione Attiva</span>
+          </div>
+
+          <h3>Connetti i Telefoni di Famiglia</h3>
+          <p class="settings-help">Apri Family Planner su iPhone o Android collegati al Wi-Fi di casa:</p>
+          
+          <div class="server-link-box">
+            <input type="text" id="shareUrlInput" class="server-link-input" readonly value="http://192.168.1.65:8080/">
+            <button type="button" class="btn btn-secondary btn-small" id="copyShareLinkBtn">Copia</button>
+          </div>
+
+          <div class="qr-share-box">
+            <div class="qr-canvas-wrap" id="qrContainer">
+              <!-- Real scannable QR Code generated here -->
+            </div>
+            <p class="qr-label">Inquadra con la fotocamera del tuo cellulare per aprire subito l'app</p>
+          </div>
+
+          <div class="share-buttons-grid">
+            <button class="btn btn-whatsapp" id="sendWhatsAppScheduleBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2Z"/>
+              </svg>
+              Invia Link su WhatsApp
+            </button>
+            <button class="btn btn-primary" id="openMobileWebBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+              Apri nel Browser
+            </button>
+          </div>
+
+          <!-- Installation Guide for iPhone and Android -->
+          <div class="pwa-install-guide">
+            <div class="pwa-guide-header">
+              <span class="guide-sparkle">📲</span>
+              <strong>Come installarla come vera App a tutto schermo:</strong>
+            </div>
+            <div class="install-steps-card">
+              <div class="install-step">
+                <span class="device-tag ios">🍏 iPhone (Safari)</span>
+                <p>1. Apri il link in <strong>Safari</strong>.<br>
+                   2. Tocca l'icona <strong>Condividi</strong> (quadrato con freccia in su).<br>
+                   3. Seleziona <strong>"Aggiungi alla schermata Home"</strong>.</p>
+              </div>
+              <div class="install-step">
+                <span class="device-tag android">🤖 Android (Chrome)</span>
+                <p>1. Apri il link in <strong>Google Chrome</strong>.<br>
+                   2. Tocca i tre puntini <strong>⋮</strong> in alto a destra.<br>
+                   3. Tocca <strong>"Installa app"</strong> o <strong>"Aggiungi a Home"</strong>.</p>
+              </div>
+            </div>
+            <p class="install-note">✨ Una volta aggiunta alla Home, si aprirà a tutto schermo senza la barra di navigazione del browser, esattamente come un'app scaricata dall'App Store o Google Play!</p>
+          </div>
+        </div>
+
+        <!-- Backup & Import -->
+        <div class="settings-group">
+          <h3>Salvataggio e Dati</h3>
+          <div class="settings-row">
+            <div>
+              <strong>Esporta Backup Calendario</strong>
+              <div class="text-muted">Salva un file JSON di tutti gli impegni</div>
+            </div>
+            <button class="btn btn-small" id="exportDataBtn">Esporta JSON</button>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <strong>Importa Backup</strong>
+              <div class="text-muted">Carica calendario da file JSON</div>
+            </div>
+            <label class="btn btn-small btn-secondary">
+              Carica file
+              <input type="file" id="importDataInput" accept=".json" style="display: none;">
+            </label>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <strong>Ripristina Dati Dimostrativi</strong>
+              <div class="text-muted">Ricarica gli impegni di esempio per tutta la famiglia</div>
+            </div>
+            <button class="btn btn-small btn-outline" id="resetDemoBtn">Ripristina</button>
+          </div>
+        </div>
+
+        <!-- App View Preferences -->
+        <div class="settings-group">
+          <h3>Preferenze e Suoni</h3>
+          <div class="settings-row">
+            <div>
+              <strong>Feedback Sonoro</strong>
+              <div class="text-muted">Suoni delicati al tocco dei bottoni</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="soundToggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="app-credits">
+          <p>Family Planner &copy; 2026</p>
+          <p>Creato appositamente per Giuseppe, Veronica, Domenico e Alessandra</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
