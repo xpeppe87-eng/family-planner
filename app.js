@@ -529,7 +529,8 @@
 
   async function initializeAppwriteFromLocal() {
     if (!appwriteConfigured()) return;
-    const accepted = confirm(Confermi il caricamento su Appwrite dei dati presenti su questo dispositivo? Saranno trasferiti nomi dei familiari, appuntamenti, luoghi, note e avatar, che potrebbero contenere informazioni personali o sanitarie. Destinazione: progetto Appwrite  su .);
+    const cfg = window.FAMILY_PLANNER_APPWRITE || {};
+    const accepted = confirm('Confermi il caricamento su Appwrite dei dati presenti su questo dispositivo? Saranno trasferiti nomi dei familiari, appuntamenti, luoghi, note e avatar. Destinazione: progetto Appwrite ' + (cfg.projectId || '') + ' su ' + (cfg.endpoint || '') + '.');
     if (!accepted) return;
     try {
       await AppwriteCloud.saveState(currentStatePayload(), true);
@@ -548,11 +549,11 @@
       } else if (error && error.message && error.message.toLowerCase().includes('attribute')) {
         hint = '\n\nðŸ’¡ Suggerimento: Nella tabella su Appwrite Console, crea l\'attributo "payload" (tipo String, dimensione grande es. 1000000 o Long Text).';
       } else if (error && (error.message && (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('CORS')))) {
-        hint = '\n\nðŸ’¡ Suggerimento: Assicurati di aver aggiunto una Piattaforma Web su Appwrite Console con hostname "localhost".';
+        hint = '\n\nðŸ’¡ Suggerimento: Assicurati di aver aggiunto una Piattaforma Web su Appwrite Console con hostname "xpeppe87-eng.github.io".';
       }
-      const code = error && error.code ? Codice :  : '';
+      const code = error && error.code ? 'Codice ' + error.code + ': ' : '';
       const detail = error && error.message ? error.message : 'errore non specificato';
-      alert(Inizializzazione Appwrite non riuscita.\n);
+      alert('Inizializzazione Appwrite non riuscita.\n' + code + detail + hint);
     }
   }
 
@@ -2234,8 +2235,8 @@
         showToast(action === 'register' ? 'Account creato e accesso effettuato.' : 'Accesso Appwrite effettuato.');
       } catch (error) {
         console.error('Appwrite authentication error:', error);
-        const detail = error && error.message ? :\n : '';
-        alert(Accesso non riuscito\n\nControlla email, password e configurazione del progetto Appwrite.);
+        const detail = error && error.message ? ':\n' + error.message : '';
+        alert('Accesso non riuscito' + detail + '\n\nControlla email, password e configurazione del progetto Appwrite.');
       }
     }
 

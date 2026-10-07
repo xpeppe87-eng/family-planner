@@ -1,5 +1,5 @@
 // Family Planner - Service Worker for Offline & Mobile PWA
-const CACHE_NAME = 'family-planner-v2.5';
+const CACHE_NAME = 'family-planner-v2.6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
