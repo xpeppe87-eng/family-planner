@@ -1,6 +1,6 @@
 /* ==========================================================================
    FAMILY PLANNER - LUXURY GLASSMORPHISM STYLESHEET
-   Accurately matching the dark luxury mobile design for Giuseppe, Veronica, Luca & Sofia
+   Matching the dark luxury mobile design
    ========================================================================== */
 
 :root {
@@ -2541,3 +2541,9 @@ input:checked + .slider::before {
     border-radius: 28px 28px 0 0 !important;
   }
 }
+
+/* Appwrite sign-in and cloud sync */
+.appwrite-panel { margin-top: 14px; }
+.appwrite-field { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; color: var(--text-secondary); font-size: 0.78rem; }
+.appwrite-field input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; background: rgba(0,0,0,0.24); color: #fff; font: inherit; }
+.appwrite-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

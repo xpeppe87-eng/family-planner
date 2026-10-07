@@ -57,7 +57,7 @@
     "luca": {
       "id": "luca",
       "name": "Figlio 1",
-      "fullName": "Figlio 1 (8 anni)",
+      "fullName": "Figlio 1",
       "role": "Figlio maggiore",
       "color": "#34d399",
       "glow": "rgba(52, 211, 153, 0.5)",
@@ -67,7 +67,7 @@
     "sofia": {
       "id": "sofia",
       "name": "Figlia 2",
-      "fullName": "Figlia 2 (5 anni)",
+      "fullName": "Figlia 2",
       "role": "Piccola di casa",
       "color": "#fbbf24",
       "glow": "rgba(251, 191, 36, 0.5)",

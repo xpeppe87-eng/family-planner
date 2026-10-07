@@ -363,100 +363,197 @@
     fetchServerState();
   }
 
-  // --- BIDIRECTIONAL CLIENT-SERVER SYNC ---
+  // --- LOCAL AND APPWRITE SYNCHRONIZATION ---
   let isSyncing = false;
   let pushTimer = null;
+  let cloudDocumentReady = false;
+
+  function appwriteConfigured() {
+    return Boolean(window.AppwriteCloud && window.AppwriteCloud.isConfigured());
+  }
+
+  function setSyncStatus(message) {
+    const badge = document.getElementById('syncStatusText');
+    if (badge) badge.textContent = message;
+  }
+
+  function currentStatePayload() {
+    return {
+      events: STATE.events,
+      places: STATE.places,
+      members: FAMILY_MEMBERS,
+      deletedMembers: STATE.deletedMembers || [],
+      lastUpdated: Date.now()
+    };
+  }
+
+  function refreshAppwritePanel(user, hasCloudDocument) {
+    const panel = document.getElementById('appwritePanel');
+    const message = document.getElementById('appwriteMessage');
+    const authForm = document.getElementById('appwriteAuthForm');
+    const signedIn = document.getElementById('appwriteSignedIn');
+    const initButton = document.getElementById('appwriteInitializeBtn');
+    if (!panel) return;
+    panel.hidden = false;
+    if (!appwriteConfigured()) {
+      if (message) message.textContent = 'Inserisci gli identificativi pubblici del progetto in appwrite-config.js. Non usare una API key.';
+      if (authForm) authForm.hidden = true;
+      if (signedIn) signedIn.hidden = true;
+      return;
+    }
+    if (authForm) authForm.hidden = Boolean(user);
+    if (signedIn) signedIn.hidden = !user;
+    if (document.getElementById('appwriteUserEmail')) {
+      document.getElementById('appwriteUserEmail').textContent = user ? user.email : '';
+    }
+    if (message) message.textContent = user
+      ? (hasCloudDocument ? 'Dati collegati al cloud della famiglia.' : 'Cloud pronto. Inizializza solo dopo aver verificato che questo dispositivo contenga i dati che vuoi trasferire.')
+      : 'Accedi o crea un account Appwrite. I dati locali non vengono caricati finchÃ© non premi il pulsante di inizializzazione.';
+    if (initButton) initButton.hidden = !user || Boolean(hasCloudDocument);
+  }
+
+  function applySyncedState(data) {
+    let changed = false;
+    if (Array.isArray(data.events) && JSON.stringify(STATE.events) !== JSON.stringify(data.events)) {
+      STATE.events = data.events;
+      changed = true;
+    }
+    if (Array.isArray(data.places) && JSON.stringify(STATE.places) !== JSON.stringify(data.places)) {
+      STATE.places = data.places;
+      changed = true;
+    }
+    if (Array.isArray(data.deletedMembers)) STATE.deletedMembers = data.deletedMembers;
+    if (data.members && typeof data.members === 'object' && JSON.stringify(FAMILY_MEMBERS) !== JSON.stringify(data.members)) {
+      FAMILY_MEMBERS = data.members;
+      STATE.members = FAMILY_MEMBERS;
+      changed = true;
+    }
+    if (!changed) return;
+    try {
+      localStorage.setItem('family_planner_data_v2', JSON.stringify({
+        events: STATE.events,
+        places: STATE.places,
+        members: FAMILY_MEMBERS,
+        deletedMembers: STATE.deletedMembers || []
+      }));
+    } catch (e) {}
+    updateMemberNamesUI();
+    updateMemberBadges();
+    updateTodayBanner();
+    renderUpcomingFeed();
+    renderDashboardMembers();
+    renderFamilyProfiles();
+    if (typeof renderCalendarView === 'function') renderCalendarView();
+  }
 
   async function fetchServerState() {
     if (isSyncing) return;
+    if (appwriteConfigured()) {
+      try {
+        const user = await AppwriteCloud.getUser();
+        if (!user) {
+          cloudDocumentReady = false;
+          refreshAppwritePanel(null, false);
+          setSyncStatus('Accedi per sincronizzare con Appwrite');
+          return;
+        }
+        const document = await AppwriteCloud.loadState();
+        cloudDocumentReady = Boolean(document);
+        refreshAppwritePanel(user, cloudDocumentReady);
+        if (!document) {
+          setSyncStatus('Appwrite pronto: inizializzazione richiesta');
+          return;
+        }
+        applySyncedState(document);
+        setSyncStatus('Appwrite: sincronizzazione attiva');
+      } catch (error) {
+        cloudDocumentReady = false;
+        setSyncStatus('Appwrite non raggiungibile: controlla accesso e configurazione');
+        console.error('Appwrite sync error:', error);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/data', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
-      
-      // If server has stored data, hydrate and reconcile
-      if (data && data.events && Array.isArray(data.events) && data.events.length > 0) {
-        let changed = false;
-        if (JSON.stringify(STATE.events) !== JSON.stringify(data.events)) {
-          STATE.events = data.events;
-          changed = true;
-        }
-        if (data.places && JSON.stringify(STATE.places) !== JSON.stringify(data.places)) {
-          STATE.places = data.places;
-          changed = true;
-        }
-        if (data.deletedMembers && Array.isArray(data.deletedMembers)) {
-          STATE.deletedMembers = data.deletedMembers;
-        }
-        if (data.members && typeof data.members === 'object') {
-          const syncedMembers = {};
-          Object.keys(data.members).forEach(k => {
-            if (!STATE.deletedMembers || !STATE.deletedMembers.includes(k)) {
-              syncedMembers[k] = data.members[k];
-            }
-          });
-          FAMILY_MEMBERS = syncedMembers;
-          STATE.members = FAMILY_MEMBERS;
-          changed = true;
-        }
-
-        if (changed) {
-          try {
-            localStorage.setItem('family_planner_data_v2', JSON.stringify({
-              events: STATE.events,
-              places: STATE.places,
-              members: FAMILY_MEMBERS,
-              deletedMembers: STATE.deletedMembers || []
-            }));
-          } catch(e){}
-
-          updateMemberNamesUI();
-          updateMemberBadges();
-          updateTodayBanner();
-          renderUpcomingFeed();
-          renderDashboardMembers();
-          renderFamilyProfiles();
-          if (typeof renderCalendarView === 'function') renderCalendarView();
-        }
-
-        const badge = document.getElementById('syncStatusText');
-        if (badge) badge.textContent = 'Server Famiglia: Sincronizzazione Attiva';
+      if (data && Array.isArray(data.events) && data.events.length > 0) {
+        applySyncedState(data);
+        setSyncStatus('Server Famiglia: Sincronizzazione Attiva');
       } else {
-        // If server is empty, push local state to server
         pushStateToServer();
       }
     } catch (e) {
-      // Offline mode: quietly keep local state
-      const badge = document.getElementById('syncStatusText');
-      if (badge) badge.textContent = 'Modalità Locale / Offline (Dati Salvati)';
+      setSyncStatus('ModalitÃ  Locale / Offline (Dati Salvati)');
     }
   }
 
   function pushStateToServer() {
     clearTimeout(pushTimer);
+    if (appwriteConfigured()) {
+      if (!cloudDocumentReady) return;
+      pushTimer = setTimeout(async () => {
+        if (isSyncing) return;
+        try {
+          isSyncing = true;
+          await AppwriteCloud.saveState(currentStatePayload(), false);
+          setSyncStatus('Appwrite: sincronizzazione attiva');
+        } catch (error) {
+          setSyncStatus('Modifiche salvate sul dispositivo; sincronizzazione cloud non riuscita');
+          console.error('Appwrite save error:', error);
+        } finally {
+          isSyncing = false;
+        }
+      }, 400);
+      return;
+    }
+
     pushTimer = setTimeout(async () => {
       try {
         isSyncing = true;
-        const payload = {
-          events: STATE.events,
-          places: STATE.places,
-          members: FAMILY_MEMBERS,
-          deletedMembers: STATE.deletedMembers || [],
-          lastUpdated: Date.now()
-        };
+        const payload = currentStatePayload();
         await fetch('/api/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const badge = document.getElementById('syncStatusText');
-        if (badge) badge.textContent = 'Server Famiglia: Sincronizzazione Attiva';
+        setSyncStatus('Server Famiglia: Sincronizzazione Attiva');
       } catch (err) {
         // Offline / server not reachable
       } finally {
         isSyncing = false;
       }
     }, 250);
+  }
+
+  async function initializeAppwriteFromLocal() {
+    if (!appwriteConfigured()) return;
+    const accepted = confirm(Confermi il caricamento su Appwrite dei dati presenti su questo dispositivo? Saranno trasferiti nomi dei familiari, appuntamenti, luoghi, note e avatar, che potrebbero contenere informazioni personali o sanitarie. Destinazione: progetto Appwrite  su .);
+    if (!accepted) return;
+    try {
+      await AppwriteCloud.saveState(currentStatePayload(), true);
+      cloudDocumentReady = true;
+      const user = await AppwriteCloud.getUser();
+      refreshAppwritePanel(user, true);
+      setSyncStatus('Appwrite: sincronizzazione attiva');
+      showToast('Dati inizializzati nel cloud della famiglia.');
+    } catch (error) {
+      console.error('Appwrite initialize error:', error);
+      let hint = '';
+      if (error && (error.code === 404 || error.type === 'collection_not_found' || error.type === 'database_not_found')) {
+        hint = '\n\nðŸ’¡ Suggerimento: Verifica che Database ID e Table/Collection ID in appwrite-config.js corrispondano a quelli nella Console Appwrite.';
+      } else if (error && (error.code === 401 || error.code === 403)) {
+        hint = '\n\nðŸ’¡ Suggerimento: Verifica i permessi della Collection su Appwrite Console (Settings -> Permissions: concedi Create, Read, Update a "Users" o "Any").';
+      } else if (error && error.message && error.message.toLowerCase().includes('attribute')) {
+        hint = '\n\nðŸ’¡ Suggerimento: Nella tabella su Appwrite Console, crea l\'attributo "payload" (tipo String, dimensione grande es. 1000000 o Long Text).';
+      } else if (error && (error.message && (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('CORS')))) {
+        hint = '\n\nðŸ’¡ Suggerimento: Assicurati di aver aggiunto una Piattaforma Web su Appwrite Console con hostname "localhost".';
+      }
+      const code = error && error.code ? Codice :  : '';
+      const detail = error && error.message ? error.message : 'errore non specificato';
+      alert(Inizializzazione Appwrite non riuscita.\n);
+    }
   }
 
   function saveState() {
@@ -1624,7 +1721,7 @@
       }
     } catch (e) {}
     // Default verified Wi-Fi IP
-    cachedServerUrl = 'http://192.168.1.65:8080/';
+    cachedServerUrl = (window.location.protocol === 'https:' || (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')) ? window.location.href.split('#')[0].split('?')[0] : 'http://192.168.1.65:8080/';
     return cachedServerUrl;
   }
 
@@ -2118,6 +2215,44 @@
       window.open(url, '_blank');
     });
 
+        // Appwrite account and initial family data transfer
+    async function handleAppwriteAuth(action) {
+      const email = document.getElementById('appwriteEmail')?.value.trim();
+      const password = document.getElementById('appwritePassword')?.value;
+      const name = document.getElementById('appwriteName')?.value.trim();
+      if (!email || !password) {
+        alert('Inserisci email e password.');
+        return;
+      }
+      try {
+        const user = action === 'register'
+          ? await AppwriteCloud.register(email, password, name)
+          : await AppwriteCloud.login(email, password);
+        document.getElementById('appwritePassword').value = '';
+        refreshAppwritePanel(user, false);
+        await fetchServerState();
+        showToast(action === 'register' ? 'Account creato e accesso effettuato.' : 'Accesso Appwrite effettuato.');
+      } catch (error) {
+        console.error('Appwrite authentication error:', error);
+        const detail = error && error.message ? :\n : '';
+        alert(Accesso non riuscito\n\nControlla email, password e configurazione del progetto Appwrite.);
+      }
+    }
+
+    document.getElementById('appwriteLoginBtn')?.addEventListener('click', () => handleAppwriteAuth('login'));
+    document.getElementById('appwriteRegisterBtn')?.addEventListener('click', () => handleAppwriteAuth('register'));
+    document.getElementById('appwriteLogoutBtn')?.addEventListener('click', async () => {
+      try {
+        await AppwriteCloud.logout();
+        cloudDocumentReady = false;
+        refreshAppwritePanel(null, false);
+        setSyncStatus('Accesso Appwrite terminato');
+      } catch (error) {
+        alert('Non Ã¨ stato possibile uscire da Appwrite.');
+      }
+    });
+    document.getElementById('appwriteInitializeBtn')?.addEventListener('click', initializeAppwriteFromLocal);
+
     // Sound toggle
     document.getElementById('soundToggle')?.addEventListener('change', (e) => {
       SoundFX.enabled = e.target.checked;
@@ -2126,6 +2261,7 @@
 
   // --- INITIALIZATION ---
   function init() {
+    refreshAppwritePanel(null, false);
     loadState();
     updateLiveClock();
     setInterval(updateLiveClock, 30000);

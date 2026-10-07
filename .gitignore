@@ -28,3 +28,9 @@ desktop.ini
 *.zip
 *.tar.gz
 *.7z
+
+# Credenziali e configurazioni locali
+.env
+.env.*
+!.env.example
+appwrite-config.local.js

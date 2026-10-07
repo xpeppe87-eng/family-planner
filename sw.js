@@ -1,10 +1,12 @@
 // Family Planner - Service Worker for Offline & Mobile PWA
-const CACHE_NAME = 'family-planner-v2.2';
+const CACHE_NAME = 'family-planner-v2.5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
   './app.js',
+  './appwrite-config.js',
+  './appwrite-cloud.js',
   './manifest.json',
   './assets/logo_gold_gv.png',
   './assets/papa.png',

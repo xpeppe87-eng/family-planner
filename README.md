@@ -1,6 +1,6 @@
 # 📅 Family Planner
 
-Applicazione web progressiva (PWA) moderna, reattiva e dal design curato con glassmorphism per organizzare gli impegni, le attività, i luoghi frequenti e i turni di tutta la famiglia in tempo reale.
+Applicazione web progressiva (PWA) moderna, reattiva e dal design curato con glassmorphism per organizzare gli impegni, le attività, i luoghi frequenti e i turni di tutta la famiglia in modo coordinato.
 
 ---
 
@@ -11,7 +11,7 @@ Applicazione web progressiva (PWA) moderna, reattiva e dal design curato con gla
 - **Vista Calendario & Feed**: agenda interattiva e calendario mensile con categorie di impegno (Sport, Scuola, Famiglia, Salute, Lavoro, ecc.).
 - **Luoghi Frequenti**: gestione rapida dei punti di riferimento familiari (casa, scuola, palestra, studi medici) con link diretto a Google Maps.
 - **PWA & Offline First**: utilizzabile come app a tutto schermo su smartphone, tablet e PC, con Service Worker e cache locale.
-- **Sincronizzazione in Tempo Reale**: sincronizzazione bidirezionale tra tutti i dispositivi collegati alla stessa rete locale.
+- **Sincronizzazione**: salvataggio locale oppure sincronizzazione cloud Appwrite tra familiari autenticati.
 
 ---
 
@@ -40,7 +40,9 @@ Per il corretto funzionamento dell'applicazione sono necessari i seguenti file:
 | `manifest.json` | Configurazione PWA per l'installazione su dispositivi mobili |
 | `sw.js` | Service Worker per supporto offline e caching |
 | `assets/` | Icone, loghi e avatar grafici per i profili familiari |
-| `data.example.json` | Template di esempio con dati fittizi per l'inizializzazione del database locale |
+| `data.example.json` | Template anonimo di esempio per l'inizializzazione locale |
+| `appwrite-config.js` | Identificativi pubblici del progetto Appwrite (mai inserire chiavi API) |
+| `appwrite-cloud.js` | Accesso, autenticazione e sincronizzazione con Appwrite |
 
 ---
 
@@ -54,7 +56,7 @@ Per proteggere la privacy della famiglia, il file con i dati effettivi **`data.j
    ```powershell
    Copy-Item data.example.json data.json
    ```
-3. Tutti i dati inseriti o modificati rimarranno salvati esclusivamente sul tuo computer locale nel file `data.json`.
+3. Nella modalità locale i dati restano nel file `data.json`; con Appwrite configurato vengono sincronizzati nel progetto cloud dopo l'accesso e l'inizializzazione esplicita.
 
 ---
 
@@ -90,11 +92,19 @@ oppure premi `Ctrl + C` nella finestra del server.
 
 ---
 
-## ⚠️ Nota sull'Architettura di Sincronizzazione e Appwrite
+## ☁️ Appwrite: configurazione cloud
 
-> [!NOTE]
-> **Stato attuale della sincronizzazione**:
-> Il progetto utilizza attualmente un **server HTTP locale in PowerShell** (`server.ps1`) che espone l'endpoint `/api/data` per salvare e sincronizzare lo stato in locale (`data.json`) tra i dispositivi connessi alla medesima rete domestica / Wi-Fi.
-> 
-> **Utilizzo online / Appwrite**:
-> Il progetto **non è ancora pronto per l'uso online con Appwrite**. La migrazione del backend da file locale a un servizio Cloud Backend (come Appwrite Database & Auth per consentire la sincronizzazione remota al di fuori della rete Wi-Fi di casa) è pianificata per una fase successiva di sviluppo.
+Il progetto include l'accesso con email/password e la sincronizzazione di una riga condivisa tramite un Team Appwrite. L'account autenticato deve appartenere al Team configurato.
+
+1. Crea un progetto Appwrite nella regione europea scelta dalla Console e aggiungi una piattaforma Web per `localhost` e per l'hostname usato in locale. Dopo la pubblicazione, aggiungi anche l'hostname effettivo del sito.
+2. In Auth abilita email e password. Crea un Team per la famiglia e invita gli account familiari al Team.
+3. In Databases crea un database TablesDB, una tabella `familyState` con una colonna `payload` di tipo `longtext`, e attiva **Row Security**.
+4. Nelle autorizzazioni della tabella consenti **solo Create al Team familiare**; non concedere Read, Update o Delete a livello tabella. La riga iniziale avrà permessi Read e Update limitati al Team.
+5. Copia endpoint, Project ID, Database ID, Table ID e Team ID in `appwrite-config.js`. Sono identificativi pubblici; non mettere mai una API key nel browser o in GitHub.
+6. Apri l'app, accedi o crea un account membro del Team. Il primo dispositivo mostra il pulsante per inizializzare la riga. Il trasferimento richiede un'ulteriore conferma nell'app e non parte automaticamente.
+
+La riga condivisa contiene l'intero stato familiare nella colonna `payload`. Gli aggiornamenti concorrenti usano una strategia semplice “ultima modifica vince”; per un singolo uso familiare è sufficiente, ma non è una sincronizzazione con modifica simultanea per campo.
+
+### Avvio locale
+
+Il server PowerShell continua a funzionare come modalità locale. Se Appwrite è configurato, l'app usa il cloud dopo l'accesso; se non è configurato, mantiene il salvataggio sul dispositivo e la modalità locale.

@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="assets/logo_gold_gv.png">
   <link rel="icon" type="image/png" href="assets/logo_gold_gv.png">
   <title>Family Planner - La nostra famiglia, sempre organizzata</title>
-  <meta name="description" content="Applicazione elegante per la gestione e sincronizzazione degli impegni familiari per Papà, Mamma, Domenico e Alessandra.">
+  <meta name="description" content="Applicazione elegante per la gestione e sincronizzazione degli impegni della famiglia.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -109,7 +109,7 @@
             <span class="today-pill" id="todayDatePill">Oggi</span>
             <div class="today-text-group">
               <span class="today-count" id="todayCountText">4 impegni in programma</span>
-              <span class="today-next" id="todayNextText">Prossimo: Ore 16:30 Calcio Domenico</span>
+              <span class="today-next" id="todayNextText">Prossimo impegno</span>
             </div>
           </div>
           <div class="today-right">
@@ -447,8 +447,8 @@
               <select id="eventPlaceSelect">
                 <option value="">-- Seleziona luogo frequente --</option>
                 <option value="Casa">Casa</option>
-                <option value="Scuola Primaria">Scuola Primaria (Domenico)</option>
-                <option value="Scuola Materna">Scuola Materna (Alessandra)</option>
+                <option value="Scuola Primaria">Scuola Primaria</option>
+                <option value="Scuola Materna">Scuola Materna</option>
                 <option value="Campo Sportivo / Palestra">Campo Sportivo / Palestra</option>
                 <option value="Studio Dentistico / Medico">Studio Medico</option>
                 <option value="Casa dei Nonni">Casa dei Nonni</option>
@@ -561,7 +561,7 @@
               <label for="nameInput-papa">Nome visualizzato (avatar):</label>
               <input type="text" id="nameInput-papa" placeholder="Papà" required>
               <label for="roleInput-papa">Nome completo o ruolo:</label>
-              <input type="text" id="roleInput-papa" placeholder="Giuseppe">
+              <input type="text" id="roleInput-papa" placeholder="Nome del genitore">
             </div>
           </div>
 
@@ -574,33 +574,33 @@
               <label for="nameInput-mamma">Nome visualizzato (avatar):</label>
               <input type="text" id="nameInput-mamma" placeholder="Mamma" required>
               <label for="roleInput-mamma">Nome completo o ruolo:</label>
-              <input type="text" id="roleInput-mamma" placeholder="Veronica">
+              <input type="text" id="roleInput-mamma" placeholder="Nome del genitore">
             </div>
           </div>
 
-          <!-- Domenico (ex Luca) -->
+          <!-- Figlio 1 -->
           <div class="edit-member-row-card">
             <div class="em-avatar ring-green">
-              <img src="assets/luca.png" alt="Domenico">
+              <img src="assets/luca.png" alt="Figlio 1">
             </div>
             <div class="em-inputs">
               <label for="nameInput-luca">Nome visualizzato (avatar):</label>
-              <input type="text" id="nameInput-luca" placeholder="Domenico" required>
+              <input type="text" id="nameInput-luca" placeholder="Nome" required>
               <label for="roleInput-luca">Nome completo o ruolo:</label>
-              <input type="text" id="roleInput-luca" placeholder="Domenico (8 anni)">
+              <input type="text" id="roleInput-luca" placeholder="Ruolo (opzionale)">
             </div>
           </div>
 
-          <!-- Alessandra (ex Sofia) -->
+          <!-- Figlia 2 -->
           <div class="edit-member-row-card">
             <div class="em-avatar ring-yellow">
-              <img src="assets/sofia.png" alt="Alessandra">
+              <img src="assets/sofia.png" alt="Figlia 2">
             </div>
             <div class="em-inputs">
               <label for="nameInput-sofia">Nome visualizzato (avatar):</label>
-              <input type="text" id="nameInput-sofia" placeholder="Alessandra" required>
+              <input type="text" id="nameInput-sofia" placeholder="Nome" required>
               <label for="roleInput-sofia">Nome completo o ruolo:</label>
-              <input type="text" id="roleInput-sofia" placeholder="Alessandra (5 anni)">
+              <input type="text" id="roleInput-sofia" placeholder="Ruolo (opzionale)">
             </div>
           </div>
 
@@ -712,11 +712,11 @@
               <button type="button" class="preset-avatar-item" data-src="assets/mamma.png" title="Mamma stile">
                 <img src="assets/mamma.png" alt="Mamma">
               </button>
-              <button type="button" class="preset-avatar-item" data-src="assets/luca.png" title="Domenico stile">
-                <img src="assets/luca.png" alt="Domenico">
+              <button type="button" class="preset-avatar-item" data-src="assets/luca.png" title="Stile 1">
+                <img src="assets/luca.png" alt="Figlio 1">
               </button>
-              <button type="button" class="preset-avatar-item" data-src="assets/sofia.png" title="Alessandra stile">
-                <img src="assets/sofia.png" alt="Alessandra">
+              <button type="button" class="preset-avatar-item" data-src="assets/sofia.png" title="Stile 2">
+                <img src="assets/sofia.png" alt="Figlia 2">
               </button>
             </div>
           </div>
@@ -848,14 +848,35 @@
         <!-- Share & Sync Section -->
         <div class="settings-group">
           <div class="sync-status-badge" id="syncStatusBadge">
-            <span class="sync-dot"></span> <span id="syncStatusText">Server Famiglia: Sincronizzazione Attiva</span>
+            <span class="sync-dot"></span> <span id="syncStatusText">Salvataggio locale</span>
+          </div>
+
+          <div class="settings-group appwrite-panel" id="appwritePanel">
+            <h3>Sincronizzazione cloud Appwrite</h3>
+            <p class="settings-help" id="appwriteMessage">Accedi con il tuo account familiare per sincronizzare i dati.</p>
+            <div id="appwriteAuthForm">
+              <label class="appwrite-field">Email<input type="email" id="appwriteEmail" autocomplete="username" required></label>
+              <label class="appwrite-field">Password<input type="password" id="appwritePassword" autocomplete="current-password" required></label>
+              <label class="appwrite-field">Nome (solo per creare l'account)<input type="text" id="appwriteName" autocomplete="name"></label>
+              <div class="appwrite-actions">
+                <button type="button" class="btn btn-primary btn-small" id="appwriteLoginBtn">Accedi</button>
+                <button type="button" class="btn btn-secondary btn-small" id="appwriteRegisterBtn">Crea account</button>
+              </div>
+            </div>
+            <div id="appwriteSignedIn" hidden>
+              <p class="settings-help">Account: <strong id="appwriteUserEmail"></strong></p>
+              <div class="appwrite-actions">
+                <button type="button" class="btn btn-primary btn-small" id="appwriteInitializeBtn" hidden>Inizializza cloud con i dati di questo dispositivo</button>
+                <button type="button" class="btn btn-secondary btn-small" id="appwriteLogoutBtn">Esci</button>
+              </div>
+            </div>
           </div>
 
           <h3>Connetti i Telefoni di Famiglia</h3>
           <p class="settings-help">Apri Family Planner su iPhone o Android collegati al Wi-Fi di casa:</p>
           
           <div class="server-link-box">
-            <input type="text" id="shareUrlInput" class="server-link-input" readonly value="http://192.168.1.65:8080/">
+            <input type="text" id="shareUrlInput" class="server-link-input" readonly value="">
             <button type="button" class="btn btn-secondary btn-small" id="copyShareLinkBtn">Copia</button>
           </div>
 
@@ -955,7 +976,7 @@
 
         <div class="app-credits">
           <p>Family Planner &copy; 2026</p>
-          <p>Creato appositamente per Giuseppe, Veronica, Domenico e Alessandra</p>
+          <p>Planner condiviso per la famiglia</p>
         </div>
 
       </div>
@@ -966,6 +987,9 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@17.0.0"></script>
+  <script src="appwrite-config.js"></script>
+  <script src="appwrite-cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
