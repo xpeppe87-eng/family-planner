@@ -9,14 +9,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FamilyPlanner">
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="assets/logo_gold_gv.png">
-  <link rel="icon" type="image/png" href="assets/logo_gold_gv.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
   <title>Family Planner - La nostra famiglia, sempre organizzata</title>
   <meta name="description" content="Applicazione elegante per la gestione e sincronizzazione degli impegni della famiglia.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=3.0">
+  <link rel="stylesheet" href="style.css?v=3.1">
 </head>
 <body>
 
@@ -874,10 +874,18 @@
           </div>
 
           <h3>Connetti i Telefoni di Famiglia</h3>
-          <p class="settings-help">Apri Family Planner su qualsiasi iPhone o Android (funziona ovunque, anche fuori casa con rete 4G/5G):</p>
+          <p class="settings-help">Scegli come collegare gli smartphone della famiglia:</p>
           
+          <div class="share-tab-selector" style="display: flex; gap: 8px; margin: 12px 0;">
+            <button type="button" class="btn btn-small btn-primary" id="btnShareModeWifi" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-radius: 12px; cursor: pointer;">🏠 Wi-Fi Casa (Server PC)</button>
+            <button type="button" class="btn btn-small btn-secondary" id="btnShareModeCloud" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-radius: 12px; cursor: pointer;">🌐 Online (GitHub Pages)</button>
+          </div>
+          <p class="settings-help" id="shareModeDescription" style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">
+            Connessione Wi-Fi: sincronizzazione automatica tra i cellulari e il computer di casa.
+          </p>
+
           <div class="server-link-box">
-            <input type="text" id="shareUrlInput" class="server-link-input" readonly value="https://xpeppe87-eng.github.io/family-planner/">
+            <input type="text" id="shareUrlInput" class="server-link-input" readonly value="">
             <button type="button" class="btn btn-secondary btn-small" id="copyShareLinkBtn">Copia</button>
           </div>
 
@@ -988,9 +996,9 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/appwrite@17.0.0"></script>
-  <script src="appwrite-config.js?v=3.0"></script>
-  <script src="appwrite-cloud.js?v=3.0"></script>
-  <script src="app.js?v=3.0"></script>
+  <script src="appwrite.min.js?v=3.1"></script>
+  <script src="appwrite-config.js?v=3.1"></script>
+  <script src="appwrite-cloud.js?v=3.1"></script>
+  <script src="app.js?v=3.1"></script>
 </body>
 </html>

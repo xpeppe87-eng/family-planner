@@ -6,6 +6,7 @@
   let client;
   let account;
   let databases;
+  let originBlocked = false;
 
   function isConfigured() {
     return Boolean(
@@ -16,6 +17,10 @@
       (config.tableId || config.collectionId) &&
       (config.rowId || config.documentId)
     );
+  }
+
+  function isOriginBlocked() {
+    return originBlocked;
   }
 
   function initialize() {
@@ -31,6 +36,21 @@
     }
   }
 
+  function isCorsOrOriginError(error) {
+    if (!error) return false;
+    if (error.type === 'general_unknown_origin' || error.code === 403) return true;
+    if (typeof error.message === 'string') {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('invalid origin') || msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('cors')) {
+        return true;
+      }
+    }
+    if (error.name === 'TypeError' && typeof error.message === 'string' && error.message.includes('fetch')) {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Assicura una sessione attiva (esistente, login email o sessione anonima automatica).
    * Permette a qualsiasi telefono della famiglia di sincronizzarsi istantaneamente
@@ -38,11 +58,19 @@
    */
   async function ensureSession() {
     if (!isConfigured()) return null;
+    if (originBlocked) {
+      const err = new Error('ORIGIN_NOT_ALLOWED');
+      err.type = 'general_unknown_origin';
+      err.code = 403;
+      throw err;
+    }
+
     initialize();
     try {
       return await account.get();
     } catch (error) {
-      if (error && (error.type === 'general_unknown_origin' || (error.message && error.message.includes('Invalid Origin')))) {
+      if (isCorsOrOriginError(error)) {
+        originBlocked = true;
         const err = new Error('ORIGIN_NOT_ALLOWED');
         err.type = 'general_unknown_origin';
         err.code = 403;
@@ -52,7 +80,8 @@
         await account.createAnonymousSession();
         return await account.get();
       } catch (anonError) {
-        if (anonError && (anonError.type === 'general_unknown_origin' || (anonError.message && anonError.message.includes('Invalid Origin')))) {
+        if (isCorsOrOriginError(anonError)) {
+          originBlocked = true;
           const err = new Error('ORIGIN_NOT_ALLOWED');
           err.type = 'general_unknown_origin';
           err.code = 403;
@@ -74,6 +103,7 @@
     try { await account.deleteSession('current'); } catch (e) {}
     await account.create(Appwrite.ID.unique(), email, password, name || 'Familiare');
     await account.createEmailPasswordSession(email, password);
+    originBlocked = false;
     return account.get();
   }
 
@@ -81,6 +111,7 @@
     initialize();
     try { await account.deleteSession('current'); } catch (e) {}
     await account.createEmailPasswordSession(email, password);
+    originBlocked = false;
     return account.get();
   }
 
@@ -95,6 +126,7 @@
 
   function getPermissions() {
     const permissions = [];
+    if (!window.Appwrite) return undefined;
     // Permessi per chiunque abbia accesso al link (compresi dispositivi mobili della famiglia)
     try {
       const anyRole = Appwrite.Role.any();
@@ -173,5 +205,5 @@
     }
   }
 
-  window.AppwriteCloud = { isConfigured, ensureSession, getUser, register, login, logout, loadState, saveState };
+  window.AppwriteCloud = { isConfigured, isOriginBlocked, ensureSession, getUser, register, login, logout, loadState, saveState };
 })();

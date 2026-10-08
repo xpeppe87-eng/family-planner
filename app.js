@@ -456,9 +456,54 @@
     if (typeof renderCalendarView === 'function') renderCalendarView();
   }
 
+  // Helper per rilevare se l'app e' aperta tramite server locale (PC o smartphone connesso al Wi-Fi del computer)
+  function isLocalServer() {
+    const host = window.location.hostname;
+    const port = window.location.port;
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return true;
+    if (port === '8080' || port === '3000' || port === '8081' || port === '8088') return true;
+    return false;
+  }
+
   async function fetchServerState() {
     if (isSyncing) return;
+
+    // 1. MODALITA SERVER LOCALE (Wi-Fi casa o computer locale): Sincronizzazione prioritaria istantanea
+    if (isLocalServer()) {
+      try {
+        const res = await fetch('/api/data', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data === 'object') {
+            if (Array.isArray(data.events) && data.events.length > 0) {
+              applySyncedState(data);
+              setSyncStatus('Server Wi-Fi: Sincronizzato 🟢');
+            } else if (STATE.events && STATE.events.length > 0) {
+              // Il server locale e' vuoto, inizializzalo con gli impegni correnti
+              await fetch('/api/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentStatePayload())
+              });
+              setSyncStatus('Server Wi-Fi: Sincronizzato 🟢');
+            }
+          }
+          return;
+        }
+      } catch (err) {
+        setSyncStatus('Modalità Offline (Dati Salvati)');
+        return;
+      }
+    }
+
+    // 2. MODALITA CLOUD (GitHub Pages o dominio remoto): Sincronizzazione tramite Appwrite
     if (appwriteConfigured()) {
+      if (window.AppwriteCloud.isOriginBlocked && window.AppwriteCloud.isOriginBlocked()) {
+        cloudDocumentReady = false;
+        setSyncStatus('⚠️ Autorizza dominio su Appwrite');
+        return;
+      }
       try {
         const user = await AppwriteCloud.ensureSession();
         const document = await AppwriteCloud.loadState();
@@ -477,7 +522,7 @@
       } catch (error) {
         cloudDocumentReady = false;
         if (error && (error.message === 'ORIGIN_NOT_ALLOWED' || error.type === 'general_unknown_origin' || error.code === 403)) {
-          setSyncStatus('⚠️ Autorizza xpeppe87-eng.github.io su Appwrite');
+          setSyncStatus('⚠️ Autorizza dominio su Appwrite');
         } else {
           setSyncStatus('Modalità Offline (Dati Salvati)');
         }
@@ -486,23 +531,35 @@
       return;
     }
 
-    try {
-      const res = await fetch('/api/data', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data && Array.isArray(data.events) && data.events.length > 0) {
-        applySyncedState(data);
-        setSyncStatus('Server Famiglia: Sincronizzazione Attiva');
-      } else {
-        pushStateToServer();
-      }
-    } catch (e) {
-      setSyncStatus('Modalità Offline (Dati Salvati)');
-    }
+    setSyncStatus('Modalità Offline (Dati Salvati)');
   }
 
   function pushStateToServer() {
     clearTimeout(pushTimer);
+
+    // Se connesso al server locale (PC o smartphone via Wi-Fi): salva sempre istantaneamente su /api/data!
+    if (isLocalServer()) {
+      pushTimer = setTimeout(async () => {
+        if (isSyncing) return;
+        try {
+          isSyncing = true;
+          await fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentStatePayload())
+          });
+          setSyncStatus('Server Wi-Fi: Sincronizzato 🟢');
+        } catch (err) {
+          setSyncStatus('Modifiche salvate sul dispositivo');
+          console.warn('Salvataggio su server locale non riuscito:', err);
+        } finally {
+          isSyncing = false;
+        }
+      }, 300);
+      return;
+    }
+
+    // Modalita cloud / GitHub Pages
     if (appwriteConfigured()) {
       pushTimer = setTimeout(async () => {
         if (isSyncing) return;
@@ -516,37 +573,11 @@
         } finally {
           isSyncing = false;
         }
-
-        // Se aperto in locale su PC, salva anche su data.json tramite server locale
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          try {
-            await fetch('/api/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(currentStatePayload())
-            });
-          } catch (e) {}
-        }
       }, 400);
       return;
     }
 
-    pushTimer = setTimeout(async () => {
-      try {
-        isSyncing = true;
-        const payload = currentStatePayload();
-        await fetch('/api/data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        setSyncStatus('Server Famiglia: Sincronizzazione Attiva');
-      } catch (err) {
-        // Offline / server non raggiungibile
-      } finally {
-        isSyncing = false;
-      }
-    }, 250);
+    setSyncStatus('Modifiche salvate sul dispositivo');
   }
 
   async function initializeAppwriteFromLocal() {
@@ -1723,50 +1754,73 @@
   }
 
   // --- SERVER SHARE URL & QR CODE SYSTEM ---
-  let cachedServerUrl = null;
+  let currentShareMode = isLocalServer() ? 'wifi' : 'cloud';
+  let cachedWifiUrl = null;
+  const GITHUB_PAGES_URL = 'https://xpeppe87-eng.github.io/family-planner/';
 
-  async function getServerShareUrl() {
-    return 'https://xpeppe87-eng.github.io/family-planner/';
-    // If opened via local IP address or remote host
+  async function getWifiShareUrl() {
+    if (cachedWifiUrl) return cachedWifiUrl;
     if (window.location.hostname && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname)) {
-      cachedServerUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/`;
-      return cachedServerUrl;
+      cachedWifiUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/`;
+      return cachedWifiUrl;
     }
-    // Try querying local server info endpoint
     try {
       const res = await fetch('/api/info');
       if (res.ok) {
         const data = await res.json();
         if (data && data.url) {
-          cachedServerUrl = data.url;
-          return cachedServerUrl;
+          cachedWifiUrl = data.url;
+          return cachedWifiUrl;
         }
       }
     } catch (e) {}
-    // Default verified Wi-Fi IP
-    cachedServerUrl = (window.location.protocol === 'https:' || (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')) ? window.location.href.split('#')[0].split('?')[0] : 'http://192.168.1.65:8080/';
-    return cachedServerUrl;
+    cachedWifiUrl = 'http://192.168.1.65:8080/';
+    return cachedWifiUrl;
   }
 
-  async function renderShareQR() {
+  async function getServerShareUrl(mode) {
+    const selectedMode = mode || currentShareMode;
+    if (selectedMode === 'wifi') {
+      return await getWifiShareUrl();
+    }
+    return GITHUB_PAGES_URL;
+  }
+
+  async function renderShareQR(mode) {
+    if (mode) currentShareMode = mode;
     const container = document.getElementById('qrContainer');
     const input = document.getElementById('shareUrlInput');
-    if (!container) return;
+    const desc = document.getElementById('shareModeDescription');
+    const btnWifi = document.getElementById('btnShareModeWifi');
+    const btnCloud = document.getElementById('btnShareModeCloud');
 
-    const url = await getServerShareUrl();
+    if (btnWifi && btnCloud) {
+      if (currentShareMode === 'wifi') {
+        btnWifi.className = 'btn btn-small btn-primary';
+        btnCloud.className = 'btn btn-small btn-secondary';
+        if (desc) desc.textContent = '🏠 Connessione Wi-Fi di Casa: sincronizzazione automatica tra tutti i dispositivi e il PC.';
+      } else {
+        btnWifi.className = 'btn btn-small btn-secondary';
+        btnCloud.className = 'btn btn-small btn-primary';
+        if (desc) desc.textContent = '🌐 Connessione Online: accessibile da qualsiasi posto con rete dati 4G/5G.';
+      }
+    }
+
+    const url = await getServerShareUrl(currentShareMode);
     if (input) input.value = url;
+    if (!container) return;
 
     // Real high-contrast scannable QR Code on pure white canvas
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=12&data=${encodeURIComponent(url)}`;
     
     container.innerHTML = `
-      <img src="${qrUrl}" alt="QR Code per aprire Family Planner su cellulare" class="qr-img" style="width: 210px; height: 210px; display: block; margin: 0 auto;" onerror="this.onerror=null; this.outerHTML='<div style=\\'padding: 20px; font-weight: bold; color: #0284c7; text-align: center;\\'>${url}</div>';">
+      <img src="${qrUrl}" alt="QR Code per aprire Family Planner su cellulare" class="qr-img" style="width: 210px; height: 210px; display: block; margin: 0 auto; border-radius: 12px; background: #ffffff;" onerror="this.onerror=null; this.outerHTML='<div style=\\'padding: 20px; font-weight: bold; color: #0284c7; text-align: center; background: #fff; border-radius: 12px; word-break: break-all;\\'>${url}</div>';">
     `;
   }
 
   // --- WHATSAPP SHARING GENERATOR ---
   async function shareViaWhatsApp() {
-    const url = await getServerShareUrl();
+    const url = await getServerShareUrl(currentShareMode);
     const todayStr = toDateStr(new Date());
     const todayEvents = STATE.events.filter(e => e.date === todayStr);
 
@@ -2225,6 +2279,16 @@
       }
     });
 
+    // Share Mode Selector (Wi-Fi Casa vs Cloud Online)
+    document.getElementById('btnShareModeWifi')?.addEventListener('click', () => {
+      SoundFX.playClick();
+      renderShareQR('wifi');
+    });
+    document.getElementById('btnShareModeCloud')?.addEventListener('click', () => {
+      SoundFX.playClick();
+      renderShareQR('cloud');
+    });
+
     // Send WhatsApp Link & Daily Schedule
     document.getElementById('sendWhatsAppScheduleBtn')?.addEventListener('click', () => {
       SoundFX.playClick();
@@ -2234,7 +2298,8 @@
     // Open Mobile Web
     document.getElementById('openMobileWebBtn')?.addEventListener('click', async () => {
       SoundFX.playClick();
-      const url = await getServerShareUrl();
+      const input = document.getElementById('shareUrlInput');
+      const url = input && input.value ? input.value : await getServerShareUrl(currentShareMode);
       window.open(url, '_blank');
     });
 
@@ -2295,24 +2360,25 @@
     renderUpcomingFeed();
     setupListeners();
 
-    // Register Service Worker for PWA (Android & iOS offline caching)
-    if ('serviceWorker' in navigator) {
+    // Register Service Worker for PWA (Android & iOS offline caching su HTTPS o localhost)
+    if ('serviceWorker' in navigator && (window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
       navigator.serviceWorker.register('./sw.js').then(reg => {
         reg.update();
       }).catch(err => {
         console.log('SW registration note:', err);
       });
-      let refreshing = false;
+      let hadController = Boolean(navigator.serviceWorker.controller);
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
+        if (hadController) {
+          hadController = false;
           window.location.reload();
         }
       });
     }
 
-    // Auto-sync interval & visibility change listeners
-    setInterval(fetchServerState, 10000);
+    // Auto-sync interval dinamico (5s su Wi-Fi locale per sincronizzazione rapida)
+    const syncIntervalMs = isLocalServer() ? 5000 : 15000;
+    setInterval(fetchServerState, syncIntervalMs);
     window.addEventListener('focus', fetchServerState);
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) fetchServerState();

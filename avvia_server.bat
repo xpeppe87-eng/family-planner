@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 title Family Planner - Server Locale
 echo ======================================================================
 echo           AVVIO SERVER FAMILY PLANNER PER LA TUA RETE WI-FI

@@ -15,31 +15,42 @@ $dataPath = Join-Path $root "data.json"
 # Rileva automaticamente l'indirizzo IP locale Wi-Fi per i cellulari
 $localIp = "127.0.0.1"
 try {
-    $ips = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) | 
-           Where-Object { 
-               $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork -and 
-               $_.IPAddressToString -notlike "127.*" -and 
-               $_.IPAddressToString -notlike "169.254*" 
-           }
-    if ($ips) {
-        $localIp = $ips[0].IPAddressToString
+    # 1. Cerca l'interfaccia con route predefinita verso Internet / Router Wi-Fi
+    $activeRoute = Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($activeRoute) {
+        $routeIp = Get-NetIPAddress -InterfaceIndex $activeRoute.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                   Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254*" } | 
+                   Select-Object -ExpandProperty IPAddress -First 1
+        if ($routeIp) { $localIp = $routeIp }
+    }
+    # 2. Fallback tramite risoluzione DNS hostname locale
+    if ($localIp -eq "127.0.0.1") {
+        $ips = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) | 
+               Where-Object { 
+                   $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork -and 
+                   $_.IPAddressToString -notlike "127.*" -and 
+                   $_.IPAddressToString -notlike "169.254*" 
+               }
+        if ($ips) {
+            $localIp = $ips[0].IPAddressToString
+        }
     }
 } catch {
-    $localIp = "localhost"
+    $localIp = "127.0.0.1"
 }
 
 # Tipi MIME supportati
 $mimeTypes = @{
-    ".html" = "text/html; charset=utf-8"
-    ".css"  = "text/css; charset=utf-8"
-    ".js"   = "application/javascript; charset=utf-8"
-    ".json" = "application/json; charset=utf-8"
-    ".png"  = "image/png"
-    ".jpg"  = "image/jpeg"
-    ".jpeg" = "image/jpeg"
-    ".svg"  = "image/svg+xml"
-    ".ico"  = "image/x-icon"
-    ".webmanifest" = "application/manifest+json"
+    ".html"        = "text/html; charset=utf-8"
+    ".css"         = "text/css; charset=utf-8"
+    ".js"          = "application/javascript; charset=utf-8"
+    ".json"        = "application/json; charset=utf-8"
+    ".png"         = "image/png"
+    ".jpg"         = "image/jpeg"
+    ".jpeg"        = "image/jpeg"
+    ".svg"         = "image/svg+xml"
+    ".ico"         = "image/x-icon"
+    ".webmanifest" = "application/manifest+json; charset=utf-8"
 }
 
 # Avvio listener TCP su tutte le interfacce (0.0.0.0)
@@ -61,21 +72,41 @@ if (-not $tcp) {
     exit 1
 }
 
+# Verifica regola firewall di Windows
+$fwRule = Get-NetFirewallRule -DisplayName "*Family Planner*" -ErrorAction SilentlyContinue
+
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "  FAMILY PLANNER - SERVER LOCALE MULTI-DISPOSITIVO ATTIVO" -ForegroundColor Green
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "  Accesso dal computer:        http://localhost:$port/" -ForegroundColor White
 Write-Host "  Accesso da cellulari (Wi-Fi): http://$($localIp):$port/" -ForegroundColor Yellow
-Write-Host "  Stato sincronizzazione:     Sincronizzazione API attiva (/api/data)" -ForegroundColor Green
+Write-Host "  Sincronizzazione dati:       ATTIVA in tempo reale (/api/data)" -ForegroundColor Green
+if (-not $fwRule) {
+    Write-Host "----------------------------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host "  [!] NOTA PER I CELLULARI:" -ForegroundColor Yellow
+    Write-Host "      Se lo smartphone non carica la pagina, esegui una volta il file:" -ForegroundColor White
+    Write-Host "      'abilita_accesso_telefoni.bat' con tasto destro -> Esegui come amministratore" -ForegroundColor Cyan
+}
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "Premi Ctrl+C per arrestare il server.`n"
 
 while ($true) {
     try {
         $client = $tcp.AcceptTcpClient()
-        $client.ReceiveTimeout = 6000
-        $client.SendTimeout = 6000
+        $client.ReceiveTimeout = 3000
+        $client.SendTimeout = 3000
         $stream = $client.GetStream()
+
+        # Attesa non-bloccante: evita che connessioni vuote (pre-connect) blocchino il server
+        $waitCount = 0
+        while (-not $stream.DataAvailable -and $waitCount -lt 35) {
+            Start-Sleep -Milliseconds 25
+            $waitCount++
+        }
+        if (-not $stream.DataAvailable) {
+            $client.Close()
+            continue
+        }
         
         # Lettura accurata dei byte della richiesta HTTP
         $memStream = New-Object System.IO.MemoryStream
@@ -119,7 +150,8 @@ while ($true) {
 
         $method = $parts[0].ToUpper()
         $rawPath = $parts[1]
-        $path = $rawPath.Split('?')[0].TrimStart('/')
+        $cleanPath = $rawPath.Split('?')[0].TrimStart('/')
+        $path = [System.Uri]::UnescapeDataString($cleanPath).Replace('..', '').TrimStart('/', '\')
         if ([string]::IsNullOrEmpty($path)) { $path = "index.html" }
 
         # Lettura Content-Length
@@ -154,7 +186,7 @@ while ($true) {
         # ENDPOINT API: SINCRONIZZAZIONE DATI PER TUTTA LA FAMIGLIA
         if ($rawPath -like "/api/data*") {
             if ($method -eq "OPTIONS") {
-                $res = "HTTP/1.1 204 No Content`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nConnection: close`r`n`r`n"
+                $res = "HTTP/1.1 204 No Content`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type, Authorization, Cache-Control`r`nConnection: close`r`n`r`n"
                 $bytes = [System.Text.Encoding]::UTF8.GetBytes($res)
                 $stream.Write($bytes, 0, $bytes.Length)
             } elseif ($method -eq "GET") {
@@ -163,7 +195,7 @@ while ($true) {
                     $json = [System.IO.File]::ReadAllText($dataPath, [System.Text.Encoding]::UTF8)
                 }
                 $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-                $header = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nContent-Length: $($jsonBytes.Length)`r`nCache-Control: no-cache`r`nConnection: close`r`n`r`n"
+                $header = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nContent-Length: $($jsonBytes.Length)`r`nCache-Control: no-cache, no-store, must-revalidate`r`nConnection: close`r`n`r`n"
                 $hBytes = [System.Text.Encoding]::UTF8.GetBytes($header)
                 $stream.Write($hBytes, 0, $hBytes.Length)
                 $stream.Write($jsonBytes, 0, $jsonBytes.Length)
@@ -173,7 +205,7 @@ while ($true) {
                 }
                 $resMsg = '{"success":true,"updated":true}'
                 $resBytes = [System.Text.Encoding]::UTF8.GetBytes($resMsg)
-                $header = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nContent-Length: $($resBytes.Length)`r`nConnection: close`r`n`r`n"
+                $header = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nContent-Length: $($resBytes.Length)`r`nCache-Control: no-cache, no-store, must-revalidate`r`nConnection: close`r`n`r`n"
                 $hBytes = [System.Text.Encoding]::UTF8.GetBytes($header)
                 $stream.Write($hBytes, 0, $hBytes.Length)
                 $stream.Write($resBytes, 0, $resBytes.Length)
@@ -184,17 +216,32 @@ while ($true) {
 
         # ENDPOINT API: INFORMAZIONI DI RETE (IP SERVER E DISPOSITIVI)
         if ($rawPath -like "/api/info*") {
-            $info = @{
-                localIp = $localIp
-                port = $port
-                url = "http://$($localIp):$port/"
+            if ($method -eq "OPTIONS") {
+                $res = "HTTP/1.1 204 No Content`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Methods: GET, OPTIONS`r`nConnection: close`r`n`r`n"
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($res)
+                $stream.Write($bytes, 0, $bytes.Length)
+            } else {
+                $info = @{
+                    localIp = $localIp
+                    port = $port
+                    url = "http://$($localIp):$port/"
+                }
+                $infoJson = ConvertTo-Json $info
+                $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes($infoJson)
+                $header = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nContent-Length: $($jsonBytes.Length)`r`nCache-Control: no-cache`r`nConnection: close`r`n`r`n"
+                $hBytes = [System.Text.Encoding]::UTF8.GetBytes($header)
+                $stream.Write($hBytes, 0, $hBytes.Length)
+                $stream.Write($jsonBytes, 0, $jsonBytes.Length)
             }
-            $infoJson = ConvertTo-Json $info
-            $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes($infoJson)
-            $header = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nContent-Length: $($jsonBytes.Length)`r`nConnection: close`r`n`r`n"
-            $hBytes = [System.Text.Encoding]::UTF8.GetBytes($header)
-            $stream.Write($hBytes, 0, $hBytes.Length)
-            $stream.Write($jsonBytes, 0, $jsonBytes.Length)
+            $client.Close()
+            continue
+        }
+
+        # GESTIONE RICHIESTE OPTIONS PER QUALSIASI RISORSA
+        if ($method -eq "OPTIONS") {
+            $res = "HTTP/1.1 204 No Content`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: *`r`nConnection: close`r`n`r`n"
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($res)
+            $stream.Write($bytes, 0, $bytes.Length)
             $client.Close()
             continue
         }
@@ -214,7 +261,7 @@ while ($true) {
         } else {
             $notFoundMsg = "404 Not Found: $path"
             $msgBytes = [System.Text.Encoding]::UTF8.GetBytes($notFoundMsg)
-            $header = "HTTP/1.1 404 Not Found`r`nContent-Type: text/plain`r`nContent-Length: $($msgBytes.Length)`r`nConnection: close`r`n`r`n"
+            $header = "HTTP/1.1 404 Not Found`r`nContent-Type: text/plain; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nContent-Length: $($msgBytes.Length)`r`nConnection: close`r`n`r`n"
             $hBytes = [System.Text.Encoding]::UTF8.GetBytes($header)
             $stream.Write($hBytes, 0, $hBytes.Length)
             $stream.Write($msgBytes, 0, $msgBytes.Length)
