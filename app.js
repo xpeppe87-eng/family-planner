@@ -1704,7 +1704,7 @@
   let cachedServerUrl = null;
 
   async function getServerShareUrl() {
-    if (cachedServerUrl) return cachedServerUrl;
+    return 'https://xpeppe87-eng.github.io/family-planner/';
     // If opened via local IP address or remote host
     if (window.location.hostname && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname)) {
       cachedServerUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || '8080'}/`;
