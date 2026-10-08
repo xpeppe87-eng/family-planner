@@ -1,27 +1,25 @@
 @echo off
-title Family Planner - Abilita Accesso Telefoni nel Firewall
+chcp 65001 >nul
+title Family Planner - Abilita Telefoni nel Firewall
+cd /d "%~dp0"
+
 echo ======================================================================
-echo       ABILITAZIONE ACCESSO DA SMARTPHONE (FIREWALL WINDOWS)
+echo    ABILITAZIONE ACCESSO SMARTPHONE (FIREWALL WINDOWS)
 echo ======================================================================
 echo.
-echo Questa operazione serve a consentire ai telefoni collegati al tuo Wi-Fi
-echo di visualizzare l'app Family Planner senza essere bloccati da Windows Defender.
+echo Avvio della configurazione di rete e firewall in corso...
 echo.
 
-net session >nul 2>&1
-if %errorLevel% == 0 (
-    echo [OK] Permessi di amministratore rilevati. Applicazione regole in corso...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Remove-NetFirewallRule -DisplayName 'Family Planner*' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Family Planner Server' -Description 'Consente accesso a Family Planner da smartphone e tablet in rete' -Direction Inbound -LocalPort 8080,8081,8088,3000 -Protocol TCP -Action Allow -Profile Any; Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue; Write-Host '`nRegola Firewall aggiunta con successo per tutti i profili di rete!' -ForegroundColor Green"
-    echo.
-    echo ======================================================================
-    echo   PERFETTO! ORA I CELLULARI POSSONO CONNETTERSI AL SERVER!
-    echo   Avvia 'avvia_server.bat' e apri sul telefono l'indirizzo mostrato
-    echo   (oppure inquadra il QR code sullo schermo del computer).
-    echo ======================================================================
-    echo.
-    pause
-) else (
-    echo Richiesta permessi di amministratore... Si aprira una finestra di conferma di Windows.
-    echo Clicca su 'Si' per consentire l'abilitazione.
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
-)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0abilita_firewall.ps1"
+
+echo.
+echo ======================================================================
+echo Se e apparsa la finestra di Windows PowerShell con la scritta verde
+echo '[OK] REGOLA FIREWALL APPLICATA', l'operazione e completata!
+echo.
+echo In caso di problemi, puoi anche fare clic destro su questo file
+echo e scegliere 'Esegui come amministratore'.
+echo ======================================================================
+echo.
+echo Premi un tasto qualsiasi per chiudere...
+pause >nul
