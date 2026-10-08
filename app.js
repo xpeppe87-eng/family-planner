@@ -1819,8 +1819,12 @@
   }
 
   // --- WHATSAPP SHARING GENERATOR ---
+  // NB: WhatsApp/SMS NON rendono cliccabili gli indirizzi IP locali (es. http://192.168.1.65:8080).
+  // Per questo nel messaggio mettiamo SEMPRE il link online HTTPS (cliccabile ovunque),
+  // e aggiungiamo l'indirizzo di casa solo come testo da copiare.
   async function shareViaWhatsApp() {
-    const url = await getServerShareUrl(currentShareMode);
+    const url = GITHUB_PAGES_URL;
+    const wifiUrl = currentShareMode === 'wifi' ? await getWifiShareUrl() : null;
     const todayStr = toDateStr(new Date());
     const todayEvents = STATE.events.filter(e => e.date === todayStr);
 
@@ -1838,11 +1842,67 @@
         if (e.place) msg += `📍 ${e.place}\n`;
       });
     }
+    if (wifiUrl) {
+      msg += `\n🏠 _Solo in casa (Wi-Fi), copia nel browser:_ ${wifiUrl.replace(/^https?:\/\//, '')}\n`;
+    }
     msg += `\n✨ _Tutti i cambiamenti si sincronizzano automaticamente tra noi!_`;
+
+    // Sul telefono (HTTPS) usa il menu di condivisione nativo: WhatsApp, SMS, Telegram, Email...
+    if (navigator.share && window.isSecureContext) {
+      try {
+        await navigator.share({ title: 'Family Planner', text: msg });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
 
     const encoded = encodeURIComponent(msg);
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
     showToast('Apertura WhatsApp con il link dell\'app...');
+  }
+
+  // --- INSTALLAZIONE APP SULLA SCHERMATA HOME ---
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    const btn = document.getElementById('installAppBtn');
+    if (btn) btn.classList.add('install-ready');
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    showToast('App installata sulla schermata Home! 🎉');
+  });
+
+  function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  async function installApp() {
+    if (isStandaloneApp()) {
+      showToast('L\'app è già installata e aperta dalla Home ✅');
+      return;
+    }
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (e) {}
+      deferredInstallPrompt = null;
+      return;
+    }
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) {
+      alert('Per aggiungere l\'icona su iPhone:\n\n1. Apri questa pagina con SAFARI\n2. Tocca il pulsante Condividi (quadrato con la freccia in su)\n3. Scorri e tocca "Aggiungi alla schermata Home"\n4. Tocca "Aggiungi" in alto a destra');
+      return;
+    }
+    if (!window.isSecureContext) {
+      if (confirm('Dal Wi-Fi di casa (indirizzo http) il telefono crea solo un collegamento semplice.\n\nPer installare la VERA app con icona apri il link online. Vuoi aprirlo ora?')) {
+        window.location.href = GITHUB_PAGES_URL;
+      }
+      return;
+    }
+    alert('Per aggiungere l\'icona su Android:\n\n1. Apri questa pagina con CHROME\n2. Tocca i tre puntini ⋮ in alto a destra\n3. Tocca "Installa app" (oppure "Aggiungi a schermata Home")\n4. Conferma con "Installa"');
   }
 
   // --- HELPERS ---
@@ -2153,27 +2213,11 @@
 
     // Share Plan to WhatsApp Button in Analyzer & Settings
     document.getElementById('sharePlanWhatsAppBtn')?.addEventListener('click', shareViaWhatsApp);
-    document.getElementById('sendWhatsAppScheduleBtn')?.addEventListener('click', shareViaWhatsApp);
 
-    // Open in Mobile Web Browser Button
-    document.getElementById('openMobileWebBtn')?.addEventListener('click', async () => {
-      const url = await getServerShareUrl();
-      window.open(url, '_blank');
-    });
-
-    // Copy Share Link Button
-    document.getElementById('copyShareLinkBtn')?.addEventListener('click', async () => {
-      SoundFX.playSuccess();
-      const url = await getServerShareUrl();
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(() => {
-          showToast('Link per i cellulari copiato negli appunti! 📋');
-        }).catch(() => {
-          prompt('Copia questo link:', url);
-        });
-      } else {
-        prompt('Copia questo link:', url);
-      }
+    // Install App (icona sulla schermata Home)
+    document.getElementById('installAppBtn')?.addEventListener('click', () => {
+      SoundFX.playClick();
+      installApp();
     });
 
     // Add New Place
