@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="UTF-8">
@@ -61,7 +61,7 @@
 
         <!-- Active Filter Badge (shows when a member is selected) -->
         <div class="filter-indicator" id="filterIndicator" style="display: none;">
-          <span id="filterText">Filtrato per: <strong>PapÃ </strong></span>
+          <span id="filterText">Filtrato per: <strong>Papà</strong></span>
           <button class="clear-filter-btn" id="clearFilterBtn" title="Mostra tutti gli impegni">Mostra tutti &times;</button>
         </div>
 
@@ -93,10 +93,10 @@
           <!-- Banner guida interattivo per la rimozione avatar -->
           <div class="remove-mode-banner" id="removeModeBanner" style="display: none;">
             <div class="remove-banner-content">
-              <span class="remove-banner-icon">ðŸ—‘ï¸</span>
-              <span class="remove-banner-text">Tocca un avatar o la <strong>âœ•</strong> rossa per rimuoverlo dalla barra</span>
+              <span class="remove-banner-icon">🗑️</span>
+              <span class="remove-banner-text">Tocca un avatar o la <strong>✕</strong> rossa per rimuoverlo dalla barra</span>
             </div>
-            <button type="button" class="btn-done-remove" id="btnDoneRemoveMode">Fatto âœ“</button>
+            <button type="button" class="btn-done-remove" id="btnDoneRemoveMode">Fatto ✓</button>
           </div>
 
           <div class="members-row" id="membersRow">
@@ -121,7 +121,7 @@
         </section>
 
         <!-- The 6 Main Glassmorphism Cards Grid (2x3) -->
-        <section class="features-grid" aria-label="FunzionalitÃ  principali">
+        <section class="features-grid" aria-label="Funzionalità principali">
 
           <!-- Card 1: Calendario -->
           <div class="glass-card card-calendar" id="cardCalendar" tabindex="0" role="button" aria-label="Apri Calendario">
@@ -388,7 +388,7 @@
       <div class="modal-header">
         <div class="modal-title-group">
           <h2 id="eventModalTitle">Nuovo Impegno</h2>
-          <p class="modal-subtitle-text">Organizza e assegna l'attivitÃ </p>
+          <p class="modal-subtitle-text">Organizza e assegna l'attività</p>
         </div>
         <button class="modal-close-btn" data-close-modal>&times;</button>
       </div>
@@ -399,13 +399,13 @@
 
           <!-- Titolo -->
           <div class="form-group">
-            <label for="eventTitle">Cosa c'Ã¨ in programma? *</label>
+            <label for="eventTitle">Cosa c'è in programma? *</label>
             <input type="text" id="eventTitle" placeholder="Es. Calcio, Visita Dentista, Spesa..." required>
           </div>
 
           <!-- Chi partecipa (Multi-selezione) -->
           <div class="form-group">
-            <label>Chi partecipa? (Seleziona uno o piÃ¹ membri) *</label>
+            <label>Chi partecipa? (Seleziona uno o più membri) *</label>
             <div class="participant-selector" id="participantSelector">
               <!-- Populated dynamically by JS -->
             </div>
@@ -432,10 +432,10 @@
             <label for="eventDriver">Chi accompagna o riprende?</label>
             <select id="eventDriver">
               <option value="">Nessuno (o non serve passaggio)</option>
-              <option value="PapÃ ">PapÃ  accompagna e riprende</option>
+              <option value="Papà">Papà accompagna e riprende</option>
               <option value="Mamma">Mamma accompagna e riprende</option>
-              <option value="PapÃ  accompagna, Mamma riprende">PapÃ  accompagna, Mamma riprende</option>
-              <option value="Mamma accompagna, PapÃ  riprende">Mamma accompagna, PapÃ  riprende</option>
+              <option value="Papà accompagna, Mamma riprende">Papà accompagna, Mamma riprende</option>
+              <option value="Mamma accompagna, Papà riprende">Mamma accompagna, Papà riprende</option>
               <option value="Nonni">I Nonni si occupano del passaggio</option>
               <option value="Tutti insieme">Tutti insieme</option>
             </select>
@@ -480,10 +480,10 @@
 
           <!-- Conflict Warning Card (Real-time AI logic) -->
           <div class="conflict-alert-box" id="formConflictAlert" style="display: none;">
-            <div class="alert-icon">âš ï¸</div>
+            <div class="alert-icon">⚠️</div>
             <div class="alert-content">
               <strong>Attenzione Sovrapposizione!</strong>
-              <p id="formConflictMessage">C'Ã¨ giÃ  un impegno registrato a questo orario.</p>
+              <p id="formConflictMessage">C'è già un impegno registrato a questo orario.</p>
             </div>
           </div>
 
@@ -517,7 +517,7 @@
             + Nuovo Membro
           </button>
           <button class="btn btn-secondary btn-small" id="openEditNamesFromFamilyModalBtn">
-            âœï¸ Modifica Nomi
+            ✏️ Modifica Nomi
           </button>
         </div>
 
@@ -553,14 +553,14 @@
       <div class="modal-body-scroll">
         <form id="editNamesForm" class="styled-form">
 
-          <!-- PapÃ  -->
+          <!-- Papà -->
           <div class="edit-member-row-card">
             <div class="em-avatar ring-blue">
-              <img src="assets/papa.png" alt="PapÃ ">
+              <img src="assets/papa.png" alt="Papà">
             </div>
             <div class="em-inputs">
               <label for="nameInput-papa">Nome visualizzato (avatar):</label>
-              <input type="text" id="nameInput-papa" placeholder="PapÃ " required>
+              <input type="text" id="nameInput-papa" placeholder="Papà" required>
               <label for="roleInput-papa">Nome completo o ruolo:</label>
               <input type="text" id="roleInput-papa" placeholder="Nome del genitore">
             </div>
@@ -701,14 +701,14 @@
               <button type="button" class="preset-avatar-item" data-src="assets/avatar_ragazza.png" title="Ragazza">
                 <img src="assets/avatar_ragazza.png" alt="Ragazza">
               </button>
-              <button type="button" class="preset-avatar-item" data-src="assets/avatar_bebe.png" title="BebÃ¨">
-                <img src="assets/avatar_bebe.png" alt="BebÃ¨">
+              <button type="button" class="preset-avatar-item" data-src="assets/avatar_bebe.png" title="Bebè">
+                <img src="assets/avatar_bebe.png" alt="Bebè">
               </button>
               <button type="button" class="preset-avatar-item" data-src="assets/avatar_pet.png" title="Cucciolo / Cane">
                 <img src="assets/avatar_pet.png" alt="Cucciolo">
               </button>
-              <button type="button" class="preset-avatar-item" data-src="assets/papa.png" title="PapÃ  stile">
-                <img src="assets/papa.png" alt="PapÃ ">
+              <button type="button" class="preset-avatar-item" data-src="assets/papa.png" title="Papà stile">
+                <img src="assets/papa.png" alt="Papà">
               </button>
               <button type="button" class="preset-avatar-item" data-src="assets/mamma.png" title="Mamma stile">
                 <img src="assets/mamma.png" alt="Mamma">
@@ -798,7 +798,7 @@
         <!-- Analyzer Result Card -->
         <div class="smart-assistant-card" id="analyzerResultsCard">
           <div class="assistant-badge">
-            <span class="sparkle-icon">âœ¨</span> Analisi Logistica Intelligente
+            <span class="sparkle-icon">✨</span> Analisi Logistica Intelligente
           </div>
 
           <div id="analyzerStatusPill" class="status-pill status-success">
@@ -877,8 +877,8 @@
           <p class="settings-help">Scegli come collegare gli smartphone della famiglia:</p>
           
           <div class="share-tab-selector" style="display: flex; gap: 8px; margin: 12px 0;">
-            <button type="button" class="btn btn-small btn-primary" id="btnShareModeWifi" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-radius: 12px; cursor: pointer;">ðŸ  Wi-Fi Casa (Server PC)</button>
-            <button type="button" class="btn btn-small btn-secondary" id="btnShareModeCloud" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-radius: 12px; cursor: pointer;">ðŸŒ Online (GitHub Pages)</button>
+            <button type="button" class="btn btn-small btn-primary" id="btnShareModeWifi" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-radius: 12px; cursor: pointer;">🏠 Wi-Fi Casa (Server PC)</button>
+            <button type="button" class="btn btn-small btn-secondary" id="btnShareModeCloud" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-radius: 12px; cursor: pointer;">🌐 Online (GitHub Pages)</button>
           </div>
           <p class="settings-help" id="shareModeDescription" style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">
             Connessione Wi-Fi: sincronizzazione automatica tra i cellulari e il computer di casa.
@@ -916,27 +916,27 @@
           <!-- Installation Guide for iPhone and Android -->
           <div class="pwa-install-guide">
             <div class="pwa-guide-header">
-              <span class="guide-sparkle">ðŸ“²</span>
+              <span class="guide-sparkle">📲</span>
               <strong>Come installarla come vera App a tutto schermo:</strong>
             </div>
             <button type="button" class="btn btn-primary install-app-btn" id="installAppBtn">
-              ðŸ“² Aggiungi icona alla schermata Home
+              📲 Aggiungi icona alla schermata Home
             </button>
             <div class="install-steps-card">
               <div class="install-step">
-                <span class="device-tag ios">ðŸ iPhone (Safari)</span>
+                <span class="device-tag ios">🍏 iPhone (Safari)</span>
                 <p>1. Apri il link in <strong>Safari</strong>.<br>
                    2. Tocca l'icona <strong>Condividi</strong> (quadrato con freccia in su).<br>
                    3. Seleziona <strong>"Aggiungi alla schermata Home"</strong>.</p>
               </div>
               <div class="install-step">
-                <span class="device-tag android">ðŸ¤– Android (Chrome)</span>
+                <span class="device-tag android">🤖 Android (Chrome)</span>
                 <p>1. Apri il link in <strong>Google Chrome</strong>.<br>
-                   2. Tocca i tre puntini <strong>â‹®</strong> in alto a destra.<br>
+                   2. Tocca i tre puntini <strong>⋮</strong> in alto a destra.<br>
                    3. Tocca <strong>"Installa app"</strong> o <strong>"Aggiungi a Home"</strong>.</p>
               </div>
             </div>
-            <p class="install-note">âœ¨ Una volta aggiunta alla Home, si aprirÃ  a tutto schermo senza la barra di navigazione del browser, esattamente come un'app scaricata dall'App Store o Google Play!</p>
+            <p class="install-note">✨ Una volta aggiunta alla Home, si aprirà a tutto schermo senza la barra di navigazione del browser, esattamente come un'app scaricata dall'App Store o Google Play!</p>
           </div>
         </div>
 
