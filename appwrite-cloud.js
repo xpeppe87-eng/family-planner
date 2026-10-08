@@ -42,10 +42,22 @@
     try {
       return await account.get();
     } catch (error) {
+      if (error && (error.type === 'general_unknown_origin' || (error.message && error.message.includes('Invalid Origin')))) {
+        const err = new Error('ORIGIN_NOT_ALLOWED');
+        err.type = 'general_unknown_origin';
+        err.code = 403;
+        throw err;
+      }
       try {
         await account.createAnonymousSession();
         return await account.get();
       } catch (anonError) {
+        if (anonError && (anonError.type === 'general_unknown_origin' || (anonError.message && anonError.message.includes('Invalid Origin')))) {
+          const err = new Error('ORIGIN_NOT_ALLOWED');
+          err.type = 'general_unknown_origin';
+          err.code = 403;
+          throw err;
+        }
         console.warn('Creazione sessione automatica:', anonError);
         if (error && error.code === 401) return null;
         throw error;

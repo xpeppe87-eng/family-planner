@@ -476,7 +476,11 @@
         setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
       } catch (error) {
         cloudDocumentReady = false;
-        setSyncStatus('Modalità Offline (Dati Salvati)');
+        if (error && (error.message === 'ORIGIN_NOT_ALLOWED' || error.type === 'general_unknown_origin' || error.code === 403)) {
+          setSyncStatus('⚠️ Autorizza xpeppe87-eng.github.io su Appwrite');
+        } else {
+          setSyncStatus('Modalità Offline (Dati Salvati)');
+        }
         console.warn('Appwrite sync status:', error);
       }
       return;
