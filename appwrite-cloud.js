@@ -31,20 +31,34 @@
     }
   }
 
-  async function getUser() {
+  /**
+   * Assicura una sessione attiva (esistente, login email o sessione anonima automatica).
+   * Permette a qualsiasi telefono della famiglia di sincronizzarsi istantaneamente
+   * senza barriere di registrazione o password obbligatorie.
+   */
+  async function ensureSession() {
     if (!isConfigured()) return null;
     initialize();
     try {
       return await account.get();
     } catch (error) {
-      if (error.code === 401) return null;
-      throw error;
+      try {
+        await account.createAnonymousSession();
+        return await account.get();
+      } catch (anonError) {
+        console.warn('Creazione sessione automatica:', anonError);
+        if (error && error.code === 401) return null;
+        throw error;
+      }
     }
+  }
+
+  async function getUser() {
+    return ensureSession();
   }
 
   async function register(email, password, name) {
     initialize();
-    // Chiudi eventuali sessioni residue per evitare l'errore "session already active"
     try { await account.deleteSession('current'); } catch (e) {}
     await account.create(Appwrite.ID.unique(), email, password, name || 'Familiare');
     await account.createEmailPasswordSession(email, password);
@@ -53,7 +67,6 @@
 
   async function login(email, password) {
     initialize();
-    // Chiudi eventuali sessioni residue prima di accedere
     try { await account.deleteSession('current'); } catch (e) {}
     await account.createEmailPasswordSession(email, password);
     return account.get();
@@ -64,12 +77,29 @@
     try {
       await account.deleteSession('current');
     } catch (error) {
-      if (error.code !== 401) throw error;
+      if (error && error.code !== 401) throw error;
     }
   }
 
   function getPermissions() {
     const permissions = [];
+    // Permessi per chiunque abbia accesso al link (compresi dispositivi mobili della famiglia)
+    try {
+      const anyRole = Appwrite.Role.any();
+      permissions.push(Appwrite.Permission.read(anyRole));
+      permissions.push(Appwrite.Permission.update(anyRole));
+      permissions.push(Appwrite.Permission.delete(anyRole));
+    } catch (e) {}
+
+    // Permessi per utenti autenticati con email
+    try {
+      const usersRole = Appwrite.Role.users();
+      permissions.push(Appwrite.Permission.read(usersRole));
+      permissions.push(Appwrite.Permission.update(usersRole));
+      permissions.push(Appwrite.Permission.delete(usersRole));
+    } catch (e) {}
+
+    // Permessi per eventuale team configurato
     if (config.teamId) {
       try {
         const teamRole = Appwrite.Role.team(config.teamId);
@@ -78,18 +108,12 @@
         permissions.push(Appwrite.Permission.delete(teamRole));
       } catch (e) {}
     }
-    try {
-      // Consenti a tutti i familiari autenticati nel progetto di leggere e aggiornare
-      const usersRole = Appwrite.Role.users();
-      permissions.push(Appwrite.Permission.read(usersRole));
-      permissions.push(Appwrite.Permission.update(usersRole));
-      permissions.push(Appwrite.Permission.delete(usersRole));
-    } catch (e) {}
     return permissions.length ? permissions : undefined;
   }
 
   async function loadState() {
     initialize();
+    await ensureSession();
     const databaseId = config.databaseId;
     const collectionId = config.tableId || config.collectionId;
     const documentId = config.rowId || config.documentId;
@@ -100,13 +124,16 @@
       }
       return null;
     } catch (error) {
-      if (error.code === 404) return null;
+      if (error && (error.code === 404 || error.type === 'document_not_found')) {
+        return null;
+      }
       throw error;
     }
   }
 
   async function saveState(state, createDocument) {
     initialize();
+    await ensureSession();
     const databaseId = config.databaseId;
     const collectionId = config.tableId || config.collectionId;
     const documentId = config.rowId || config.documentId;
@@ -117,8 +144,7 @@
       try {
         return await databases.createDocument(databaseId, collectionId, documentId, data, permissions);
       } catch (error) {
-        // Se il documento esiste già (409 conflict), aggiornalo invece di fallire
-        if (error.code === 409) {
+        if (error && error.code === 409) {
           return await databases.updateDocument(databaseId, collectionId, documentId, data, permissions);
         }
         throw error;
@@ -128,13 +154,12 @@
     try {
       return await databases.updateDocument(databaseId, collectionId, documentId, data, permissions);
     } catch (error) {
-      // Se il documento non esiste ancora (404 not found), crealo
-      if (error.code === 404) {
+      if (error && (error.code === 404 || error.type === 'document_not_found')) {
         return await databases.createDocument(databaseId, collectionId, documentId, data, permissions);
       }
       throw error;
     }
   }
 
-  window.AppwriteCloud = { isConfigured, getUser, register, login, logout, loadState, saveState };
+  window.AppwriteCloud = { isConfigured, ensureSession, getUser, register, login, logout, loadState, saveState };
 })();

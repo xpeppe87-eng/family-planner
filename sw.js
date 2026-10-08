@@ -1,5 +1,5 @@
 // Family Planner - Service Worker for Offline & Mobile PWA
-const CACHE_NAME = 'family-planner-v2.7';
+const CACHE_NAME = 'family-planner-v3.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -40,9 +40,19 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Only intercept GET requests
+  if (e.request.method !== 'GET') {
+    return;
+  }
+
   const url = new URL(e.request.url);
 
-  // Network-first for API requests
+  // NEVER intercept external origins (e.g. Appwrite, QR Code generator, Google Fonts, CDNs)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Network-first for local server API requests
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(
       fetch(e.request).catch(() => {
@@ -54,7 +64,36 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Cache-first, fallback to network for static files
+  // Network-first for application core scripts, HTML, and CSS
+  // Ensures mobile devices immediately load the newest version, falling back to cache if offline
+  const isCoreAsset = url.pathname.endsWith('.html') ||
+                      url.pathname.endsWith('.js') ||
+                      url.pathname.endsWith('.css') ||
+                      url.pathname.endsWith('.json') ||
+                      url.pathname === '/' ||
+                      url.pathname.endsWith('/family-planner/') ||
+                      url.pathname.endsWith('/family-planner');
+
+  if (isCoreAsset) {
+    e.respondWith(
+      fetch(e.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const toCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, toCache);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        return caches.match(e.request).then((cached) => {
+          return cached || caches.match('./index.html');
+        });
+      })
+    );
+    return;
+  }
+
+  // Cache-first for images, fonts and media
   e.respondWith(
     caches.match(e.request).then((cached) => {
       return cached || fetch(e.request).then((response) => {
@@ -67,6 +106,6 @@ self.addEventListener('fetch', (e) => {
         });
         return response;
       });
-    }).catch(() => caches.match('./index.html'))
+    })
   );
 });

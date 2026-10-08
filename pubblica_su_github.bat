@@ -8,6 +8,8 @@ echo.
 echo Invio delle ultime modifiche al repository GitHub:
 echo https://github.com/xpeppe87-eng/family-planner.git
 echo.
+"C:\Program Files\Git\cmd\git.exe" add -A
+"C:\Program Files\Git\cmd\git.exe" commit -m "feat: sincronizzazione e aggiornamenti per smartphone" >nul 2>&1
 "C:\Program Files\Git\cmd\git.exe" push origin main
 echo.
 if %errorlevel% equ 0 (

@@ -43,7 +43,15 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
-  user-select: none;
+}
+
+button, a, input, select, textarea, .glass-card, .member-chip, .nav-item, [role="button"] {
+  touch-action: manipulation;
+}
+
+input, textarea, select {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 body {

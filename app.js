@@ -349,7 +349,14 @@
         STATE.deletedMembers = [];
         FAMILY_MEMBERS = JSON.parse(JSON.stringify(DEFAULT_MEMBERS));
         STATE.members = FAMILY_MEMBERS;
-        saveState();
+        try {
+          localStorage.setItem('family_planner_data_v2', JSON.stringify({
+            events: STATE.events,
+            places: STATE.places,
+            members: FAMILY_MEMBERS,
+            deletedMembers: []
+          }));
+        } catch (e) {}
       }
     } catch (err) {
       STATE.events = getSeedEvents();
@@ -396,20 +403,23 @@
     if (!panel) return;
     panel.hidden = false;
     if (!appwriteConfigured()) {
-      if (message) message.textContent = 'Inserisci gli identificativi pubblici del progetto in appwrite-config.js. Non usare una API key.';
+      if (message) message.textContent = 'Configurazione cloud non attiva.';
       if (authForm) authForm.hidden = true;
       if (signedIn) signedIn.hidden = true;
       return;
     }
-    if (authForm) authForm.hidden = Boolean(user);
-    if (signedIn) signedIn.hidden = !user;
+    const isEmailUser = Boolean(user && user.email);
+    if (authForm) authForm.hidden = isEmailUser;
+    if (signedIn) signedIn.hidden = !isEmailUser;
     if (document.getElementById('appwriteUserEmail')) {
-      document.getElementById('appwriteUserEmail').textContent = user ? user.email : '';
+      document.getElementById('appwriteUserEmail').textContent = isEmailUser ? user.email : '';
     }
-    if (message) message.textContent = user
-      ? (hasCloudDocument ? 'Dati collegati al cloud della famiglia.' : 'Cloud pronto. Inizializza solo dopo aver verificato che questo dispositivo contenga i dati che vuoi trasferire.')
-      : 'Accedi o crea un account Appwrite. I dati locali non vengono caricati finchÃ© non premi il pulsante di inizializzazione.';
-    if (initButton) initButton.hidden = !user || Boolean(hasCloudDocument);
+    if (message) {
+      message.textContent = hasCloudDocument
+        ? 'Dati sincronizzati in tempo reale con il cloud della famiglia.'
+        : 'Cloud della famiglia pronto e collegato.';
+    }
+    if (initButton) initButton.hidden = Boolean(hasCloudDocument);
   }
 
   function applySyncedState(data) {
@@ -450,26 +460,24 @@
     if (isSyncing) return;
     if (appwriteConfigured()) {
       try {
-        const user = await AppwriteCloud.getUser();
-        if (!user) {
-          cloudDocumentReady = false;
-          refreshAppwritePanel(null, false);
-          setSyncStatus('Accedi per sincronizzare con Appwrite');
-          return;
-        }
+        const user = await AppwriteCloud.ensureSession();
         const document = await AppwriteCloud.loadState();
         cloudDocumentReady = Boolean(document);
         refreshAppwritePanel(user, cloudDocumentReady);
         if (!document) {
-          setSyncStatus('Appwrite pronto: inizializzazione richiesta');
+          if (STATE.events && STATE.events.length > 0) {
+            await AppwriteCloud.saveState(currentStatePayload(), true);
+            cloudDocumentReady = true;
+          }
+          setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
           return;
         }
         applySyncedState(document);
-        setSyncStatus('Appwrite: sincronizzazione attiva');
+        setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
       } catch (error) {
         cloudDocumentReady = false;
-        setSyncStatus('Appwrite non raggiungibile: controlla accesso e configurazione');
-        console.error('Appwrite sync error:', error);
+        setSyncStatus('Modalità Offline (Dati Salvati)');
+        console.warn('Appwrite sync status:', error);
       }
       return;
     }
@@ -485,25 +493,35 @@
         pushStateToServer();
       }
     } catch (e) {
-      setSyncStatus('ModalitÃ  Locale / Offline (Dati Salvati)');
+      setSyncStatus('Modalità Offline (Dati Salvati)');
     }
   }
 
   function pushStateToServer() {
     clearTimeout(pushTimer);
     if (appwriteConfigured()) {
-      if (!cloudDocumentReady) return;
       pushTimer = setTimeout(async () => {
         if (isSyncing) return;
         try {
           isSyncing = true;
           await AppwriteCloud.saveState(currentStatePayload(), false);
-          setSyncStatus('Appwrite: sincronizzazione attiva');
+          setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
         } catch (error) {
-          setSyncStatus('Modifiche salvate sul dispositivo; sincronizzazione cloud non riuscita');
-          console.error('Appwrite save error:', error);
+          setSyncStatus('Modifiche salvate sul dispositivo');
+          console.warn('Appwrite push status:', error);
         } finally {
           isSyncing = false;
+        }
+
+        // Se aperto in locale su PC, salva anche su data.json tramite server locale
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          try {
+            await fetch('/api/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(currentStatePayload())
+            });
+          } catch (e) {}
         }
       }, 400);
       return;
@@ -520,7 +538,7 @@
         });
         setSyncStatus('Server Famiglia: Sincronizzazione Attiva');
       } catch (err) {
-        // Offline / server not reachable
+        // Offline / server non raggiungibile
       } finally {
         isSyncing = false;
       }
@@ -2275,8 +2293,17 @@
 
     // Register Service Worker for PWA (Android & iOS offline caching)
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(err => {
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+        reg.update();
+      }).catch(err => {
         console.log('SW registration note:', err);
+      });
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
     }
 
