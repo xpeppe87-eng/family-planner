@@ -478,7 +478,50 @@
   async function fetchServerState() {
     if (isSyncing) return;
 
-    // 1. MODALITA SERVER LOCALE (Wi-Fi casa o computer locale): Sincronizzazione prioritaria istantanea
+    // 1. MODALITA CLOUD (Appwrite): Se configurato e c'e' una sessione utente, ha priorita' per garantire la sincronizzazione globale
+    if (appwriteConfigured()) {
+      if (window.AppwriteCloud.isOriginBlocked && window.AppwriteCloud.isOriginBlocked()) {
+        cloudDocumentReady = false;
+        setSyncStatus('⚠️ Autorizza dominio su Appwrite');
+        return;
+      }
+      try {
+        const user = await AppwriteCloud.ensureSession();
+        cloudSignedIn = Boolean(user);
+        if (user) {
+          const document = await AppwriteCloud.loadState();
+          cloudDocumentReady = Boolean(document);
+          refreshAppwritePanel(user, cloudDocumentReady);
+          if (!document) {
+            if (STATE.events && STATE.events.length > 0) {
+              await AppwriteCloud.saveState(currentStatePayload(), true);
+              cloudDocumentReady = true;
+            }
+            setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
+            return;
+          }
+          applySyncedState(document);
+          if (!cloudPermissionsMigrated) {
+            await AppwriteCloud.saveState(currentStatePayload(), false);
+            cloudPermissionsMigrated = true;
+          }
+          setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
+          return;
+        } else {
+          cloudDocumentReady = false;
+          refreshAppwritePanel(null, false);
+        }
+      } catch (error) {
+        cloudDocumentReady = false;
+        if (error && (error.message === 'ORIGIN_NOT_ALLOWED' || error.type === 'general_unknown_origin')) {
+          setSyncStatus('⚠️ Autorizza dominio su Appwrite');
+          return;
+        }
+        console.warn('Appwrite sync status:', error);
+      }
+    }
+
+    // 2. MODALITA SERVER LOCALE (Wi-Fi casa o computer locale): Sincronizzazione tramite /api/data
     if (isLocalServer()) {
       try {
         const res = await fetch('/api/data', { cache: 'no-store' });
@@ -506,113 +549,49 @@
       }
     }
 
-    // 2. MODALITA CLOUD (GitHub Pages o dominio remoto): Sincronizzazione tramite Appwrite
-    if (appwriteConfigured()) {
-      if (window.AppwriteCloud.isOriginBlocked && window.AppwriteCloud.isOriginBlocked()) {
-        cloudDocumentReady = false;
-        setSyncStatus('⚠️ Autorizza dominio su Appwrite');
-        return;
-      }
-      try {
-        const user = await AppwriteCloud.ensureSession();
-        cloudSignedIn = Boolean(user);
-        if (!user) {
-          cloudDocumentReady = false;
-          cloudNotMember = false;
-          refreshAppwritePanel(null, false);
-          setSyncStatus('🔒 Accedi per sincronizzare');
-          return;
-        }
-        cloudNotMember = !(await AppwriteCloud.isFamilyMember(user));
-        if (cloudNotMember) {
-          cloudDocumentReady = false;
-          refreshAppwritePanel(user, false);
-          setSyncStatus('⛔ Account non nel Team famiglia');
-          return;
-        }
-        const document = await AppwriteCloud.loadState();
-        cloudDocumentReady = Boolean(document);
-        refreshAppwritePanel(user, cloudDocumentReady);
-        if (!document) {
-          if (STATE.events && STATE.events.length > 0) {
-            await AppwriteCloud.saveState(currentStatePayload(), true);
-            cloudDocumentReady = true;
-          }
-          setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
-          return;
-        }
-        applySyncedState(document);
-        if (!cloudPermissionsMigrated) {
-          // Riscrive una volta la riga con permessi solo-Team (rimuove eventuali vecchi permessi pubblici)
-          await AppwriteCloud.saveState(currentStatePayload(), false);
-          cloudPermissionsMigrated = true;
-        }
-        setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
-      } catch (error) {
-        cloudDocumentReady = false;
-        if (error && (error.message === 'ORIGIN_NOT_ALLOWED' || error.type === 'general_unknown_origin')) {
-          setSyncStatus('⚠️ Autorizza dominio su Appwrite');
-        } else if (error && (error.code === 401 || error.code === 403)) {
-          setSyncStatus('⛔ Accesso al cloud negato');
-        } else {
-          setSyncStatus('Modalità Offline (Dati Salvati)');
-        }
-        console.warn('Appwrite sync status:', error);
-      }
-      return;
-    }
-
     setSyncStatus('Modalità Offline (Dati Salvati)');
   }
 
   function pushStateToServer() {
     clearTimeout(pushTimer);
 
-    // Se connesso al server locale (PC o smartphone via Wi-Fi): salva sempre istantaneamente su /api/data!
-    if (isLocalServer()) {
-      pushTimer = setTimeout(async () => {
-        if (isSyncing) return;
+    pushTimer = setTimeout(async () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      let syncedAny = false;
+
+      // Se server locale attivo, salva sempre su /api/data
+      if (isLocalServer()) {
         try {
-          isSyncing = true;
           await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(currentStatePayload())
           });
-          setSyncStatus('Server Wi-Fi: Sincronizzato 🟢');
+          syncedAny = true;
         } catch (err) {
-          setSyncStatus('Modifiche salvate sul dispositivo');
           console.warn('Salvataggio su server locale non riuscito:', err);
-        } finally {
-          isSyncing = false;
         }
-      }, 300);
-      return;
-    }
-
-    // Modalita cloud / GitHub Pages
-    if (appwriteConfigured()) {
-      if (!cloudSignedIn || cloudNotMember) {
-        setSyncStatus('Modifiche salvate sul dispositivo');
-        return;
       }
-      pushTimer = setTimeout(async () => {
-        if (isSyncing) return;
+
+      // Se utente autenticato su cloud Appwrite, salva contemporaneamente sul cloud
+      if (appwriteConfigured() && cloudSignedIn) {
         try {
-          isSyncing = true;
           await AppwriteCloud.saveState(currentStatePayload(), false);
+          syncedAny = true;
           setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
         } catch (error) {
-          setSyncStatus('Modifiche salvate sul dispositivo');
           console.warn('Appwrite push status:', error);
-        } finally {
-          isSyncing = false;
         }
-      }, 400);
-      return;
-    }
+      }
 
-    setSyncStatus('Modifiche salvate sul dispositivo');
+      if (!syncedAny) {
+        setSyncStatus('Modifiche salvate sul dispositivo');
+      } else if (!cloudSignedIn && isLocalServer()) {
+        setSyncStatus('Server Wi-Fi: Sincronizzato 🟢');
+      }
+      isSyncing = false;
+    }, 350);
   }
 
   async function initializeAppwriteFromLocal() {
