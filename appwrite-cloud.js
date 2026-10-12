@@ -1,4 +1,4 @@
-/* Client-only Appwrite access. Real-time family cloud synchronization. */
+/* Client-only Appwrite access. Family-only cloud synchronization (Team members). */
 (function () {
   'use strict';
 
@@ -6,7 +6,9 @@
   let client;
   let account;
   let databases;
+  let teams;
   let originBlocked = false;
+  let membershipCache = { userId: null, ok: false };
 
   function isConfigured() {
     return Boolean(
@@ -15,7 +17,8 @@
       config.projectId &&
       config.databaseId &&
       (config.tableId || config.collectionId) &&
-      (config.rowId || config.documentId)
+      (config.rowId || config.documentId) &&
+      config.teamId
     );
   }
 
@@ -25,7 +28,7 @@
 
   function initialize() {
     if (!isConfigured()) {
-      throw new Error('Configurazione Appwrite incompleta. Controlla appwrite-config.js.');
+      throw new Error('Configurazione Appwrite incompleta. Controlla appwrite-config.js (serve anche teamId).');
     }
     if (!client) {
       client = new Appwrite.Client()
@@ -33,65 +36,86 @@
         .setProject(config.projectId);
       account = new Appwrite.Account(client);
       databases = new Appwrite.Databases(client);
+      if (Appwrite.Teams) teams = new Appwrite.Teams(client);
     }
   }
 
-  function isCorsOrOriginError(error) {
+  function isOriginError(error) {
     if (!error) return false;
-    if (error.type === 'general_unknown_origin' || error.code === 403) return true;
-    if (typeof error.message === 'string') {
-      const msg = error.message.toLowerCase();
-      if (msg.includes('invalid origin') || msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('cors')) {
-        return true;
-      }
-    }
-    if (error.name === 'TypeError' && typeof error.message === 'string' && error.message.includes('fetch')) {
-      return true;
-    }
-    return false;
+    if (error.type === 'general_unknown_origin') return true;
+    return typeof error.message === 'string' && error.message.toLowerCase().includes('invalid origin');
+  }
+
+  function originError() {
+    const err = new Error('ORIGIN_NOT_ALLOWED');
+    err.type = 'general_unknown_origin';
+    err.code = 403;
+    return err;
+  }
+
+  function notMemberError() {
+    const err = new Error('NOT_FAMILY_MEMBER');
+    err.type = 'not_family_member';
+    err.code = 403;
+    return err;
   }
 
   /**
-   * Assicura una sessione attiva (esistente, login email o sessione anonima automatica).
-   * Permette a qualsiasi telefono della famiglia di sincronizzarsi istantaneamente
-   * senza barriere di registrazione o password obbligatorie.
+   * Restituisce l'utente autenticato con email/password, oppure null se non c'e' accesso.
+   * Le vecchie sessioni anonime vengono chiuse: non danno piu' accesso ai dati.
    */
   async function ensureSession() {
     if (!isConfigured()) return null;
-    if (originBlocked) {
-      const err = new Error('ORIGIN_NOT_ALLOWED');
-      err.type = 'general_unknown_origin';
-      err.code = 403;
-      throw err;
-    }
+    if (originBlocked) throw originError();
 
     initialize();
+    let user;
     try {
-      return await account.get();
+      user = await account.get();
     } catch (error) {
-      if (isCorsOrOriginError(error)) {
+      if (isOriginError(error)) {
         originBlocked = true;
-        const err = new Error('ORIGIN_NOT_ALLOWED');
-        err.type = 'general_unknown_origin';
-        err.code = 403;
-        throw err;
+        throw originError();
       }
+      if (error && error.code === 401) return null;
+      throw error;
+    }
+
+    if (!user || !user.email) {
+      try { await account.deleteSession('current'); } catch (e) {}
+      return null;
+    }
+    return user;
+  }
+
+  /** Verifica che l'utente appartenga al Team della famiglia. */
+  async function isFamilyMember(user) {
+    if (!user) return false;
+    if (membershipCache.userId === user.$id) return membershipCache.ok;
+    let ok = false;
+    if (teams) {
       try {
-        await account.createAnonymousSession();
-        return await account.get();
-      } catch (anonError) {
-        if (isCorsOrOriginError(anonError)) {
-          originBlocked = true;
-          const err = new Error('ORIGIN_NOT_ALLOWED');
-          err.type = 'general_unknown_origin';
-          err.code = 403;
-          throw err;
-        }
-        console.warn('Creazione sessione automatica:', anonError);
-        if (error && error.code === 401) return null;
-        throw error;
+        const result = await teams.list();
+        ok = Boolean(result && Array.isArray(result.teams) && result.teams.some((t) => t.$id === config.teamId));
+      } catch (error) {
+        if (error && error.code !== 401) console.warn('Verifica Team non riuscita:', error);
       }
     }
+    membershipCache = { userId: user.$id, ok };
+    return ok;
+  }
+
+  /** Richiede un utente autenticato e membro del Team, altrimenti lancia un errore. */
+  async function requireFamilyMember() {
+    const user = await ensureSession();
+    if (!user) {
+      const err = new Error('LOGIN_REQUIRED');
+      err.type = 'login_required';
+      err.code = 401;
+      throw err;
+    }
+    if (!(await isFamilyMember(user))) throw notMemberError();
+    return user;
   }
 
   async function getUser() {
@@ -104,6 +128,7 @@
     await account.create(Appwrite.ID.unique(), email, password, name || 'Familiare');
     await account.createEmailPasswordSession(email, password);
     originBlocked = false;
+    membershipCache = { userId: null, ok: false };
     return account.get();
   }
 
@@ -112,11 +137,13 @@
     try { await account.deleteSession('current'); } catch (e) {}
     await account.createEmailPasswordSession(email, password);
     originBlocked = false;
+    membershipCache = { userId: null, ok: false };
     return account.get();
   }
 
   async function logout() {
     initialize();
+    membershipCache = { userId: null, ok: false };
     try {
       await account.deleteSession('current');
     } catch (error) {
@@ -124,40 +151,18 @@
     }
   }
 
+  /** Solo il Team della famiglia puo' leggere e modificare la riga condivisa (nessuna cancellazione). */
   function getPermissions() {
-    const permissions = [];
-    if (!window.Appwrite) return undefined;
-    // Permessi per chiunque abbia accesso al link (compresi dispositivi mobili della famiglia)
-    try {
-      const anyRole = Appwrite.Role.any();
-      permissions.push(Appwrite.Permission.read(anyRole));
-      permissions.push(Appwrite.Permission.update(anyRole));
-      permissions.push(Appwrite.Permission.delete(anyRole));
-    } catch (e) {}
-
-    // Permessi per utenti autenticati con email
-    try {
-      const usersRole = Appwrite.Role.users();
-      permissions.push(Appwrite.Permission.read(usersRole));
-      permissions.push(Appwrite.Permission.update(usersRole));
-      permissions.push(Appwrite.Permission.delete(usersRole));
-    } catch (e) {}
-
-    // Permessi per eventuale team configurato
-    if (config.teamId) {
-      try {
-        const teamRole = Appwrite.Role.team(config.teamId);
-        permissions.push(Appwrite.Permission.read(teamRole));
-        permissions.push(Appwrite.Permission.update(teamRole));
-        permissions.push(Appwrite.Permission.delete(teamRole));
-      } catch (e) {}
-    }
-    return permissions.length ? permissions : undefined;
+    const teamRole = Appwrite.Role.team(config.teamId);
+    return [
+      Appwrite.Permission.read(teamRole),
+      Appwrite.Permission.update(teamRole)
+    ];
   }
 
   async function loadState() {
     initialize();
-    await ensureSession();
+    await requireFamilyMember();
     const databaseId = config.databaseId;
     const collectionId = config.tableId || config.collectionId;
     const documentId = config.rowId || config.documentId;
@@ -177,7 +182,7 @@
 
   async function saveState(state, createDocument) {
     initialize();
-    await ensureSession();
+    await requireFamilyMember();
     const databaseId = config.databaseId;
     const collectionId = config.tableId || config.collectionId;
     const documentId = config.rowId || config.documentId;
@@ -205,5 +210,8 @@
     }
   }
 
-  window.AppwriteCloud = { isConfigured, isOriginBlocked, ensureSession, getUser, register, login, logout, loadState, saveState };
+  window.AppwriteCloud = {
+    isConfigured, isOriginBlocked, ensureSession, getUser, isFamilyMember,
+    register, login, logout, loadState, saveState
+  };
 })();

@@ -97,11 +97,11 @@ oppure premi `Ctrl + C` nella finestra del server.
 Il progetto include l'accesso con email/password e la sincronizzazione di una riga condivisa tramite un Team Appwrite. L'account autenticato deve appartenere al Team configurato.
 
 1. Crea un progetto Appwrite nella regione europea scelta dalla Console e aggiungi una piattaforma Web per `localhost` e per l'hostname usato in locale. Dopo la pubblicazione, aggiungi anche l'hostname effettivo del sito.
-2. In Auth abilita email e password. Crea un Team per la famiglia e invita gli account familiari al Team.
+2. In Auth abilita **email e password** e **disattiva Anonymous**. Crea un Team per la famiglia e aggiungi al Team gli account familiari.
 3. In Databases crea un database TablesDB, una tabella `familyState` con una colonna `payload` di tipo `longtext`, e attiva **Row Security**.
-4. Nelle autorizzazioni della tabella consenti **solo Create al Team familiare**; non concedere Read, Update o Delete a livello tabella. La riga iniziale avrà permessi Read e Update limitati al Team.
+4. Nelle autorizzazioni della tabella consenti **solo Create al Team familiare**; non concedere nulla ad Any, Guests o Users. La riga condivisa avrà permessi Read e Update limitati al Team (nessun Delete).
 5. Copia endpoint, Project ID, Database ID, Table ID e Team ID in `appwrite-config.js`. Sono identificativi pubblici; non mettere mai una API key nel browser o in GitHub.
-6. Apri l'app, accedi o crea un account membro del Team. Il primo dispositivo mostra il pulsante per inizializzare la riga. Il trasferimento richiede un'ulteriore conferma nell'app e non parte automaticamente.
+6. Apri l'app e accedi con un account membro del Team. Chi non è nel Team non vede né modifica i dati cloud. Il primo dispositivo mostra il pulsante per inizializzare la riga.
 
 La riga condivisa contiene l'intero stato familiare nella colonna `payload`. Gli aggiornamenti concorrenti usano una strategia semplice “ultima modifica vince”; per un singolo uso familiare è sufficiente, ma non è una sincronizzazione con modifica simultanea per campo.
 

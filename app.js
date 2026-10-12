@@ -374,6 +374,9 @@
   let isSyncing = false;
   let pushTimer = null;
   let cloudDocumentReady = false;
+  let cloudNotMember = false;
+  let cloudSignedIn = false;
+  let cloudPermissionsMigrated = false;
 
   function appwriteConfigured() {
     return Boolean(window.AppwriteCloud && window.AppwriteCloud.isConfigured());
@@ -415,11 +418,17 @@
       document.getElementById('appwriteUserEmail').textContent = isEmailUser ? user.email : '';
     }
     if (message) {
-      message.textContent = hasCloudDocument
-        ? 'Dati sincronizzati in tempo reale con il cloud della famiglia.'
-        : 'Cloud della famiglia pronto e collegato.';
+      if (!isEmailUser) {
+        message.textContent = '🔒 Accedi con il tuo account di famiglia per sincronizzare i dati.';
+      } else if (cloudNotMember) {
+        message.textContent = '⛔ Questo account non fa parte del Team famiglia. Chiedi di essere aggiunto al Team su Appwrite.';
+      } else {
+        message.textContent = hasCloudDocument
+          ? 'Dati sincronizzati con il cloud della famiglia.'
+          : 'Cloud della famiglia pronto e collegato.';
+      }
     }
-    if (initButton) initButton.hidden = Boolean(hasCloudDocument);
+    if (initButton) initButton.hidden = !isEmailUser || cloudNotMember || Boolean(hasCloudDocument);
   }
 
   function applySyncedState(data) {
@@ -506,6 +515,21 @@
       }
       try {
         const user = await AppwriteCloud.ensureSession();
+        cloudSignedIn = Boolean(user);
+        if (!user) {
+          cloudDocumentReady = false;
+          cloudNotMember = false;
+          refreshAppwritePanel(null, false);
+          setSyncStatus('🔒 Accedi per sincronizzare');
+          return;
+        }
+        cloudNotMember = !(await AppwriteCloud.isFamilyMember(user));
+        if (cloudNotMember) {
+          cloudDocumentReady = false;
+          refreshAppwritePanel(user, false);
+          setSyncStatus('⛔ Account non nel Team famiglia');
+          return;
+        }
         const document = await AppwriteCloud.loadState();
         cloudDocumentReady = Boolean(document);
         refreshAppwritePanel(user, cloudDocumentReady);
@@ -518,11 +542,18 @@
           return;
         }
         applySyncedState(document);
+        if (!cloudPermissionsMigrated) {
+          // Riscrive una volta la riga con permessi solo-Team (rimuove eventuali vecchi permessi pubblici)
+          await AppwriteCloud.saveState(currentStatePayload(), false);
+          cloudPermissionsMigrated = true;
+        }
         setSyncStatus('Sincronizzazione Cloud Attiva ☁️');
       } catch (error) {
         cloudDocumentReady = false;
-        if (error && (error.message === 'ORIGIN_NOT_ALLOWED' || error.type === 'general_unknown_origin' || error.code === 403)) {
+        if (error && (error.message === 'ORIGIN_NOT_ALLOWED' || error.type === 'general_unknown_origin')) {
           setSyncStatus('⚠️ Autorizza dominio su Appwrite');
+        } else if (error && (error.code === 401 || error.code === 403)) {
+          setSyncStatus('⛔ Accesso al cloud negato');
         } else {
           setSyncStatus('Modalità Offline (Dati Salvati)');
         }
@@ -561,6 +592,10 @@
 
     // Modalita cloud / GitHub Pages
     if (appwriteConfigured()) {
+      if (!cloudSignedIn || cloudNotMember) {
+        setSyncStatus('Modifiche salvate sul dispositivo');
+        return;
+      }
       pushTimer = setTimeout(async () => {
         if (isSyncing) return;
         try {
@@ -2377,8 +2412,10 @@
       try {
         await AppwriteCloud.logout();
         cloudDocumentReady = false;
+        cloudSignedIn = false;
+        cloudNotMember = false;
         refreshAppwritePanel(null, false);
-        setSyncStatus('Accesso Appwrite terminato');
+        setSyncStatus('🔒 Accedi per sincronizzare');
       } catch (error) {
         alert('Non Ã¨ stato possibile uscire da Appwrite.');
       }
