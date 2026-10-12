@@ -1,4 +1,4 @@
-/* Client-only Appwrite access. Family-only cloud synchronization (Team members). */
+/* Client-only Appwrite access. Family-only cloud synchronization (Authenticated Family Account). */
 (function () {
   'use strict';
 
@@ -6,9 +6,7 @@
   let client;
   let account;
   let databases;
-  let teams;
   let originBlocked = false;
-  let membershipCache = { userId: null, ok: false };
 
   function isConfigured() {
     return Boolean(
@@ -17,8 +15,7 @@
       config.projectId &&
       config.databaseId &&
       (config.tableId || config.collectionId) &&
-      (config.rowId || config.documentId) &&
-      config.teamId
+      (config.rowId || config.documentId)
     );
   }
 
@@ -28,7 +25,7 @@
 
   function initialize() {
     if (!isConfigured()) {
-      throw new Error('Configurazione Appwrite incompleta. Controlla appwrite-config.js (serve anche teamId).');
+      throw new Error('Configurazione Appwrite incompleta. Controlla appwrite-config.js.');
     }
     if (!client) {
       client = new Appwrite.Client()
@@ -36,7 +33,6 @@
         .setProject(config.projectId);
       account = new Appwrite.Account(client);
       databases = new Appwrite.Databases(client);
-      if (Appwrite.Teams) teams = new Appwrite.Teams(client);
     }
   }
 
@@ -53,16 +49,9 @@
     return err;
   }
 
-  function notMemberError() {
-    const err = new Error('NOT_FAMILY_MEMBER');
-    err.type = 'not_family_member';
-    err.code = 403;
-    return err;
-  }
-
   /**
-   * Restituisce l'utente autenticato con email/password, oppure null se non c'e' accesso.
-   * Le vecchie sessioni anonime vengono chiuse: non danno piu' accesso ai dati.
+   * Assicura che l'utente sia autenticato con email/password.
+   * Rifiuta sessioni anonime: solo chi ha fatto login con l'account di famiglia puo' accedere.
    */
   async function ensureSession() {
     if (!isConfigured()) return null;
@@ -88,25 +77,16 @@
     return user;
   }
 
-  /** Verifica che l'utente appartenga al Team della famiglia. */
+  /**
+   * Verifica che l'utente sia autenticato con l'account di famiglia.
+   */
   async function isFamilyMember(user) {
-    if (!user) return false;
-    if (membershipCache.userId === user.$id) return membershipCache.ok;
-    let ok = false;
-    if (teams) {
-      try {
-        const result = await teams.list();
-        ok = Boolean(result && Array.isArray(result.teams) && result.teams.some((t) => t.$id === config.teamId));
-      } catch (error) {
-        if (error && error.code !== 401) console.warn('Verifica Team non riuscita:', error);
-      }
-    }
-    membershipCache = { userId: user.$id, ok };
-    return ok;
+    if (!user || !user.email) return false;
+    return true;
   }
 
-  /** Richiede un utente autenticato e membro del Team, altrimenti lancia un errore. */
-  async function requireFamilyMember() {
+  /** Richiede un utente autenticato con email/password. */
+  async function requireFamilyUser() {
     const user = await ensureSession();
     if (!user) {
       const err = new Error('LOGIN_REQUIRED');
@@ -114,7 +94,6 @@
       err.code = 401;
       throw err;
     }
-    if (!(await isFamilyMember(user))) throw notMemberError();
     return user;
   }
 
@@ -125,10 +104,9 @@
   async function register(email, password, name) {
     initialize();
     try { await account.deleteSession('current'); } catch (e) {}
-    await account.create(Appwrite.ID.unique(), email, password, name || 'Familiare');
+    await account.create(Appwrite.ID.unique(), email, password, name || 'Famiglia');
     await account.createEmailPasswordSession(email, password);
     originBlocked = false;
-    membershipCache = { userId: null, ok: false };
     return account.get();
   }
 
@@ -137,13 +115,11 @@
     try { await account.deleteSession('current'); } catch (e) {}
     await account.createEmailPasswordSession(email, password);
     originBlocked = false;
-    membershipCache = { userId: null, ok: false };
     return account.get();
   }
 
   async function logout() {
     initialize();
-    membershipCache = { userId: null, ok: false };
     try {
       await account.deleteSession('current');
     } catch (error) {
@@ -151,18 +127,22 @@
     }
   }
 
-  /** Solo il Team della famiglia puo' leggere e modificare la riga condivisa (nessuna cancellazione). */
+  /** 
+   * Permessi assegnati al documento: 
+   * Lettura e modifica concesse agli utenti autenticati (Users). 
+   * Nessun accesso a ospiti o visitatori anonimi.
+   */
   function getPermissions() {
-    const teamRole = Appwrite.Role.team(config.teamId);
+    const usersRole = Appwrite.Role.users();
     return [
-      Appwrite.Permission.read(teamRole),
-      Appwrite.Permission.update(teamRole)
+      Appwrite.Permission.read(usersRole),
+      Appwrite.Permission.update(usersRole)
     ];
   }
 
   async function loadState() {
     initialize();
-    await requireFamilyMember();
+    await requireFamilyUser();
     const databaseId = config.databaseId;
     const collectionId = config.tableId || config.collectionId;
     const documentId = config.rowId || config.documentId;
@@ -182,7 +162,7 @@
 
   async function saveState(state, createDocument) {
     initialize();
-    await requireFamilyMember();
+    await requireFamilyUser();
     const databaseId = config.databaseId;
     const collectionId = config.tableId || config.collectionId;
     const documentId = config.rowId || config.documentId;
