@@ -1274,32 +1274,56 @@
       const dateDisplay = isToday ? 'Oggi' : formatDatePretty(evt.date);
 
       return `
-        <div class="feed-event-card" data-event-id="${evt.id}">
-          <div class="f-event-left">
-            <div class="f-event-color-bar" style="background: ${mainMember.color};"></div>
-            <div class="f-event-info">
-              <h4>${escapeHtml(evt.title)}</h4>
-              <div class="f-event-meta">
-                <span>🕒 ${dateDisplay}, ${evt.startTime}</span>
-                <span>📍 ${escapeHtml(evt.place || 'Casa')}</span>
+        <div class="swipe-item-wrapper" data-event-id="${evt.id}">
+          <div class="swipe-delete-underlay">
+            <button type="button" class="swipe-delete-btn" data-delete-event="${evt.id}" aria-label="Elimina ${escapeHtml(evt.title)}">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              <span>Elimina</span>
+            </button>
+          </div>
+          <div class="feed-event-card" data-event-id="${evt.id}">
+            <div class="f-event-left">
+              <div class="f-event-color-bar" style="background: ${mainMember.color};"></div>
+              <div class="f-event-info">
+                <h4>${escapeHtml(evt.title)}</h4>
+                <div class="f-event-meta">
+                  <span>🕒 ${dateDisplay}, ${evt.startTime}</span>
+                  <span>📍 ${escapeHtml(evt.place || 'Casa')}</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="f-event-avatars">
-            ${avatarsHtml}
+            <div class="f-event-avatars">
+              ${avatarsHtml}
+            </div>
           </div>
         </div>
       `;
     }).join('');
 
-    // Attach swipe-to-delete and click
-    feed.querySelectorAll('.feed-event-card').forEach(card => {
-      attachSwipeToDelete(card, (id) => {
-        deleteEventById(id);
-      }, () => {
+    // Attach swipe-to-reveal trash button and click on feed cards
+    feed.querySelectorAll('.swipe-item-wrapper').forEach(wrapper => {
+      const card = wrapper.querySelector('.feed-event-card');
+      const deleteBtn = wrapper.querySelector('[data-delete-event]');
+      const id = wrapper.getAttribute('data-event-id');
+      if (!card || !deleteBtn) return;
+
+      attachSwipeToReveal(card, 86, () => {
         SoundFX.playClick();
-        const id = card.getAttribute('data-event-id');
         openEditEventModal(id);
+      });
+
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const evt = STATE.events.find(ev => ev.id === id);
+        const title = evt ? evt.title : 'questo impegno';
+        if (confirm(`Vuoi davvero eliminare l'impegno "${title}"?`)) {
+          wrapper.classList.add('swipe-wrapper-deleting');
+          setTimeout(() => {
+            deleteEventById(id);
+          }, 240);
+        } else {
+          card.style.transform = 'translateX(0px)';
+        }
       });
     });
   }
@@ -1316,140 +1340,114 @@
     renderUpcomingFeed();
     if (typeof renderCalendarView === 'function') renderCalendarView();
     showToast(`"${title}" eliminato`);
+    SoundFX.playSuccess();
   }
 
-  // Gesture Swipe to Delete verso destra
-  function attachSwipeToDelete(element, onDelete, onClick) {
-    const id = element.getAttribute('data-event-id');
-    if (!id) return;
-
-    // Crea o riutilizza il layer di sfondo rosso "Elimina"
-    let bg = element.querySelector('.swipe-delete-bg');
-    if (!bg) {
-      bg = document.createElement('div');
-      bg.className = 'swipe-delete-bg';
-      bg.innerHTML = `
-        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-        <span>Elimina</span>
-      `;
-      element.appendChild(bg);
-    }
-
+  // Gesture Swipe to Reveal universale (sposta la card verso destra svelando il cestino, senza auto-eliminazione)
+  function attachSwipeToReveal(card, revealWidth = 86, onClick = null) {
     let startX = 0;
     let startY = 0;
     let currentX = 0;
+    let isOpen = false;
     let isDragging = false;
     let isHorizontal = null;
     let didSwipe = false;
 
-    function onTouchStart(e) {
+    function onStart(e) {
       const touch = e.touches ? e.touches[0] : e;
       startX = touch.clientX;
       startY = touch.clientY;
-      currentX = 0;
       isDragging = true;
       isHorizontal = null;
       didSwipe = false;
-      element.classList.remove('swipe-snapping');
+      card.style.transition = 'none';
     }
 
-    function onTouchMove(e) {
+    function onMove(e) {
       if (!isDragging) return;
       const touch = e.touches ? e.touches[0] : e;
       const diffX = touch.clientX - startX;
       const diffY = touch.clientY - startY;
 
-      // Determina la direzione del gesto iniziale
       if (isHorizontal === null) {
         if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
           isHorizontal = Math.abs(diffX) > Math.abs(diffY);
         }
       }
 
-      if (!isHorizontal) return; // Lascia scrollare verticalmente la pagina
+      if (!isHorizontal) return;
 
-      // Consentiamo solo trascinamento verso destra (diffX > 0)
-      if (diffX > 0) {
-        if (e.cancelable) e.preventDefault();
-        currentX = diffX;
-        didSwipe = true;
-        element.classList.add('swipe-swiping');
-        // Trasla l'elemento verso destra
-        element.style.transform = `translateX(${currentX}px)`;
-        // Regola opacita' del background rosso e dell'elemento
-        const threshold = element.offsetWidth * 0.4;
-        const progress = Math.min(1, currentX / threshold);
-        bg.style.opacity = (progress * 0.95).toFixed(2);
-        element.style.opacity = (1 - (progress * 0.25)).toFixed(2);
-      } else {
-        currentX = 0;
-        element.style.transform = '';
-        bg.style.opacity = '0';
-        element.style.opacity = '1';
-      }
+      const base = isOpen ? revealWidth : 0;
+      let targetX = base + diffX;
+
+      // Limita il movimento verso destra (min 0, max revealWidth + 30px di morbidezza)
+      if (targetX < 0) targetX = 0;
+      if (targetX > revealWidth + 35) targetX = revealWidth + 35;
+
+      if (e.cancelable) e.preventDefault();
+      currentX = targetX;
+      didSwipe = true;
+      card.style.transform = `translateX(${currentX}px)`;
     }
 
-    function onTouchEnd() {
+    function onEnd() {
       if (!isDragging) return;
       isDragging = false;
-      element.classList.remove('swipe-swiping');
+      card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
 
-      const width = element.offsetWidth || 300;
-      const threshold = Math.min(width * 0.45, 160);
-
-      if (didSwipe && currentX >= threshold) {
-        // Trigger eliminazione: animazione rapida di uscita verso destra
-        element.classList.add('swipe-deleting');
-        element.style.transform = `translateX(${width + 40}px)`;
-        element.style.opacity = '0';
-        bg.style.opacity = '1';
-        try {
-          if (navigator.vibrate) navigator.vibrate(30);
-        } catch (e) {}
-        setTimeout(() => {
-          onDelete(id);
-        }, 250);
+      // Soglia per rivelare o chiudere
+      if (currentX >= revealWidth * 0.42) {
+        currentX = revealWidth;
+        isOpen = true;
+        try { if (navigator.vibrate) navigator.vibrate(20); } catch (e) {}
       } else {
-        // Rimbalzo (snap back) alla posizione originale
-        element.classList.add('swipe-snapping');
-        element.style.transform = '';
-        element.style.opacity = '';
-        bg.style.opacity = '0';
+        currentX = 0;
+        isOpen = false;
       }
+      card.style.transform = `translateX(${currentX}px)`;
     }
 
-    // Touch events per smartphone (iOS e Android)
-    element.addEventListener('touchstart', onTouchStart, { passive: true });
-    element.addEventListener('touchmove', onTouchMove, { passive: false });
-    element.addEventListener('touchend', onTouchEnd);
-    element.addEventListener('touchcancel', onTouchEnd);
+    // Touch events per smartphone (iOS / Android)
+    card.addEventListener('touchstart', onStart, { passive: true });
+    card.addEventListener('touchmove', onMove, { passive: false });
+    card.addEventListener('touchend', onEnd);
+    card.addEventListener('touchcancel', onEnd);
 
-    // Mouse events per test o uso da PC con mouse
+    // Mouse drag events per PC
     let isMouseDown = false;
-    element.addEventListener('mousedown', (e) => {
-      // Ignora clic con tasto destro
-      if (e.button !== 0) return;
+    card.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.target.closest('a') || e.target.closest('button')) return;
       isMouseDown = true;
-      onTouchStart(e);
+      onStart(e);
 
       function onMouseMove(ev) {
         if (!isMouseDown) return;
-        onTouchMove(ev);
+        onMove(ev);
       }
       function onMouseUp(ev) {
         if (!isMouseDown) return;
         isMouseDown = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        onTouchEnd();
+        onEnd();
       }
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     });
 
-    // Clic per aprire la modifica solo se non e' stato effettuato uno swipe
-    element.addEventListener('click', (e) => {
+    // Clic per aprire la card se chiusa, oppure richiudere se gia' aperta
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a') || e.target.closest('button')) return;
+      if (isOpen && currentX === revealWidth) {
+        e.preventDefault();
+        e.stopPropagation();
+        isOpen = false;
+        currentX = 0;
+        card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        card.style.transform = 'translateX(0px)';
+        return;
+      }
       if (didSwipe) {
         e.stopPropagation();
         e.preventDefault();
@@ -1538,19 +1536,27 @@
         const mainColor = firstValidId && FAMILY_MEMBERS[firstValidId] ? FAMILY_MEMBERS[firstValidId].color : '#38bdf8';
 
         html += `
-          <div class="agenda-item" data-event-id="${evt.id}">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 4px; height: 34px; border-radius: 4px; background: ${mainColor};"></div>
-              <div>
-                <strong style="color: #fff; font-size: 0.88rem;">${escapeHtml(evt.title)}</strong>
-                <div style="font-size: 0.75rem; color: var(--text-secondary); display: flex; gap: 8px;">
-                  <span>🕒 ${evt.startTime}${evt.endTime ? ' - ' + evt.endTime : ''}</span>
-                  <span>📍 ${escapeHtml(evt.place || 'Casa')}</span>
-                </div>
-                ${evt.driver ? `<div style="font-size: 0.72rem; color: #38bdf8; margin-top: 2px;">🚗 ${escapeHtml(evt.driver)}</div>` : ''}
-              </div>
+          <div class="swipe-item-wrapper" data-event-id="${evt.id}">
+            <div class="swipe-delete-underlay">
+              <button type="button" class="swipe-delete-btn" data-delete-event="${evt.id}" aria-label="Elimina ${escapeHtml(evt.title)}">
+                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                <span>Elimina</span>
+              </button>
             </div>
-            <div class="f-event-avatars">${avatars}</div>
+            <div class="agenda-item" data-event-id="${evt.id}">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 4px; height: 34px; border-radius: 4px; background: ${mainColor};"></div>
+                <div>
+                  <strong style="color: #fff; font-size: 0.88rem;">${escapeHtml(evt.title)}</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary); display: flex; gap: 8px;">
+                    <span>🕒 ${evt.startTime}${evt.endTime ? ' - ' + evt.endTime : ''}</span>
+                    <span>📍 ${escapeHtml(evt.place || 'Casa')}</span>
+                  </div>
+                  ${evt.driver ? `<div style="font-size: 0.72rem; color: #38bdf8; margin-top: 2px;">🚗 ${escapeHtml(evt.driver)}</div>` : ''}
+                </div>
+              </div>
+              <div class="f-event-avatars">${avatars}</div>
+            </div>
           </div>
         `;
       });
@@ -1560,13 +1566,29 @@
 
     container.innerHTML = html;
 
-    container.querySelectorAll('.agenda-item').forEach(item => {
-      attachSwipeToDelete(item, (id) => {
-        deleteEventById(id);
-      }, () => {
+    container.querySelectorAll('.swipe-item-wrapper').forEach(wrapper => {
+      const card = wrapper.querySelector('.agenda-item');
+      const deleteBtn = wrapper.querySelector('[data-delete-event]');
+      const id = wrapper.getAttribute('data-event-id');
+      if (!card || !deleteBtn) return;
+
+      attachSwipeToReveal(card, 86, () => {
         SoundFX.playClick();
-        const id = item.getAttribute('data-event-id');
         openEditEventModal(id);
+      });
+
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const evt = STATE.events.find(ev => ev.id === id);
+        const title = evt ? evt.title : 'questo impegno';
+        if (confirm(`Vuoi davvero eliminare l'impegno "${title}"?`)) {
+          wrapper.classList.add('swipe-wrapper-deleting');
+          setTimeout(() => {
+            deleteEventById(id);
+          }, 240);
+        } else {
+          card.style.transform = 'translateX(0px)';
+        }
       });
     });
   }
@@ -1683,15 +1705,23 @@
           return m ? `<img src="${m.avatar}" class="f-avatar-mini" alt="${escapeHtml(m.name)}" title="${escapeHtml(m.name)}">` : '';
         }).filter(Boolean).join('') : '';
         html += `
-          <div class="agenda-item" data-event-id="${evt.id}">
-            <div>
-              <strong style="color: #fff;">${escapeHtml(evt.title)}</strong>
-              <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
-                Ore ${evt.startTime}${evt.endTime ? ' - ' + evt.endTime : ''} &bull; ${escapeHtml(evt.place || 'Casa')}
-              </div>
-              ${evt.driver ? `<div style="font-size: 0.72rem; color: #38bdf8; margin-top: 2px;">🚗 ${escapeHtml(evt.driver)}</div>` : ''}
+          <div class="swipe-item-wrapper" data-event-id="${evt.id}">
+            <div class="swipe-delete-underlay">
+              <button type="button" class="swipe-delete-btn" data-delete-event="${evt.id}" aria-label="Elimina ${escapeHtml(evt.title)}">
+                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                <span>Elimina</span>
+              </button>
             </div>
-            <div class="f-event-avatars">${avatars}</div>
+            <div class="agenda-item" data-event-id="${evt.id}">
+              <div>
+                <strong style="color: #fff;">${escapeHtml(evt.title)}</strong>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                  Ore ${evt.startTime}${evt.endTime ? ' - ' + evt.endTime : ''} &bull; ${escapeHtml(evt.place || 'Casa')}
+                </div>
+                ${evt.driver ? `<div style="font-size: 0.72rem; color: #38bdf8; margin-top: 2px;">🚗 ${escapeHtml(evt.driver)}</div>` : ''}
+              </div>
+              <div class="f-event-avatars">${avatars}</div>
+            </div>
           </div>
         `;
       });
@@ -1699,13 +1729,29 @@
 
     container.innerHTML = html;
 
-    container.querySelectorAll('.agenda-item').forEach(item => {
-      attachSwipeToDelete(item, (id) => {
-        deleteEventById(id);
-      }, () => {
+    container.querySelectorAll('.swipe-item-wrapper').forEach(wrapper => {
+      const card = wrapper.querySelector('.agenda-item');
+      const deleteBtn = wrapper.querySelector('[data-delete-event]');
+      const id = wrapper.getAttribute('data-event-id');
+      if (!card || !deleteBtn) return;
+
+      attachSwipeToReveal(card, 86, () => {
         SoundFX.playClick();
-        const id = item.getAttribute('data-event-id');
         openEditEventModal(id);
+      });
+
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const evt = STATE.events.find(ev => ev.id === id);
+        const title = evt ? evt.title : 'questo impegno';
+        if (confirm(`Vuoi davvero eliminare l'impegno "${title}"?`)) {
+          wrapper.classList.add('swipe-wrapper-deleting');
+          setTimeout(() => {
+            deleteEventById(id);
+          }, 240);
+        } else {
+          card.style.transform = 'translateX(0px)';
+        }
       });
     });
   }
@@ -1877,7 +1923,7 @@
       const placeId = wrapper.getAttribute('data-place-id');
       if (!card || !deleteBtn) return;
 
-      attachSwipeToReveal(card, wrapper, 90);
+      attachSwipeToReveal(card, 86);
 
       // Clic sul pulsante cestino rivelato
       deleteBtn.addEventListener('click', (e) => {
@@ -1909,110 +1955,7 @@
     SoundFX.playSuccess();
   }
 
-  // Gesture Swipe to Reveal (sposta verso destra e svela il pulsante senza eliminare in automatico)
-  function attachSwipeToReveal(card, wrapper, revealWidth = 90) {
-    let startX = 0;
-    let startY = 0;
-    let currentX = 0;
-    let isOpen = false;
-    let isDragging = false;
-    let isHorizontal = null;
 
-    function onStart(e) {
-      const touch = e.touches ? e.touches[0] : e;
-      startX = touch.clientX;
-      startY = touch.clientY;
-      isDragging = true;
-      isHorizontal = null;
-      card.style.transition = 'none';
-    }
-
-    function onMove(e) {
-      if (!isDragging) return;
-      const touch = e.touches ? e.touches[0] : e;
-      const diffX = touch.clientX - startX;
-      const diffY = touch.clientY - startY;
-
-      if (isHorizontal === null) {
-        if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
-          isHorizontal = Math.abs(diffX) > Math.abs(diffY);
-        }
-      }
-
-      if (!isHorizontal) return;
-
-      const base = isOpen ? revealWidth : 0;
-      let targetX = base + diffX;
-
-      // Limita il trascinamento: non puo' andare a sinistra (min 0) e max fino a revealWidth + 30px di elasticita'
-      if (targetX < 0) targetX = 0;
-      if (targetX > revealWidth + 35) targetX = revealWidth + 35;
-
-      if (e.cancelable) e.preventDefault();
-      currentX = targetX;
-      card.style.transform = `translateX(${currentX}px)`;
-    }
-
-    function onEnd() {
-      if (!isDragging) return;
-      isDragging = false;
-      card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
-
-      // Soglia per decidere se aprire o chiudere
-      if (currentX >= revealWidth * 0.45) {
-        currentX = revealWidth;
-        isOpen = true;
-        try { if (navigator.vibrate) navigator.vibrate(20); } catch (e) {}
-      } else {
-        currentX = 0;
-        isOpen = false;
-      }
-      card.style.transform = `translateX(${currentX}px)`;
-    }
-
-    // Touch events per smartphone
-    card.addEventListener('touchstart', onStart, { passive: true });
-    card.addEventListener('touchmove', onMove, { passive: false });
-    card.addEventListener('touchend', onEnd);
-    card.addEventListener('touchcancel', onEnd);
-
-    // Mouse drag events per PC
-    let isMouseDown = false;
-    card.addEventListener('mousedown', (e) => {
-      if (e.button !== 0 || e.target.closest('a')) return;
-      isMouseDown = true;
-      onStart(e);
-
-      function onMouseMove(ev) {
-        if (!isMouseDown) return;
-        onMove(ev);
-      }
-      function onMouseUp(ev) {
-        if (!isMouseDown) return;
-        isMouseDown = false;
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        onEnd();
-      }
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-
-    // Se si tocca altrove o si tocca la card quando e' aperta, richiudi
-    card.addEventListener('click', (e) => {
-      if (isOpen && currentX === revealWidth) {
-        if (!e.target.closest('a')) {
-          e.preventDefault();
-          e.stopPropagation();
-          isOpen = false;
-          currentX = 0;
-          card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
-          card.style.transform = 'translateX(0px)';
-        }
-      }
-    });
-  }
 
   // --- FAMILY PROFILES CONTROLLER ---
   function renderFamilyProfiles() {
