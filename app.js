@@ -1292,13 +1292,170 @@
       `;
     }).join('');
 
-    // Attach click to open edit
+    // Attach swipe-to-delete and click
     feed.querySelectorAll('.feed-event-card').forEach(card => {
-      card.addEventListener('click', () => {
+      attachSwipeToDelete(card, (id) => {
+        deleteEventById(id);
+      }, () => {
         SoundFX.playClick();
         const id = card.getAttribute('data-event-id');
         openEditEventModal(id);
       });
+    });
+  }
+
+  // Helper centralizzato per eliminare un impegno e aggiornare la UI
+  function deleteEventById(id) {
+    if (!id) return;
+    const evt = STATE.events.find(e => e.id === id);
+    const title = evt ? evt.title : 'Impegno';
+    STATE.events = STATE.events.filter(e => e.id !== id);
+    saveState();
+    updateMemberBadges();
+    updateTodayBanner();
+    renderUpcomingFeed();
+    if (typeof renderCalendarView === 'function') renderCalendarView();
+    showToast(`"${title}" eliminato`);
+  }
+
+  // Gesture Swipe to Delete verso destra
+  function attachSwipeToDelete(element, onDelete, onClick) {
+    const id = element.getAttribute('data-event-id');
+    if (!id) return;
+
+    // Crea o riutilizza il layer di sfondo rosso "Elimina"
+    let bg = element.querySelector('.swipe-delete-bg');
+    if (!bg) {
+      bg = document.createElement('div');
+      bg.className = 'swipe-delete-bg';
+      bg.innerHTML = `
+        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        <span>Elimina</span>
+      `;
+      element.appendChild(bg);
+    }
+
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let isHorizontal = null;
+    let didSwipe = false;
+
+    function onTouchStart(e) {
+      const touch = e.touches ? e.touches[0] : e;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      currentX = 0;
+      isDragging = true;
+      isHorizontal = null;
+      didSwipe = false;
+      element.classList.remove('swipe-snapping');
+    }
+
+    function onTouchMove(e) {
+      if (!isDragging) return;
+      const touch = e.touches ? e.touches[0] : e;
+      const diffX = touch.clientX - startX;
+      const diffY = touch.clientY - startY;
+
+      // Determina la direzione del gesto iniziale
+      if (isHorizontal === null) {
+        if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
+          isHorizontal = Math.abs(diffX) > Math.abs(diffY);
+        }
+      }
+
+      if (!isHorizontal) return; // Lascia scrollare verticalmente la pagina
+
+      // Consentiamo solo trascinamento verso destra (diffX > 0)
+      if (diffX > 0) {
+        if (e.cancelable) e.preventDefault();
+        currentX = diffX;
+        didSwipe = true;
+        element.classList.add('swipe-swiping');
+        // Trasla l'elemento verso destra
+        element.style.transform = `translateX(${currentX}px)`;
+        // Regola opacita' del background rosso e dell'elemento
+        const threshold = element.offsetWidth * 0.4;
+        const progress = Math.min(1, currentX / threshold);
+        bg.style.opacity = (progress * 0.95).toFixed(2);
+        element.style.opacity = (1 - (progress * 0.25)).toFixed(2);
+      } else {
+        currentX = 0;
+        element.style.transform = '';
+        bg.style.opacity = '0';
+        element.style.opacity = '1';
+      }
+    }
+
+    function onTouchEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      element.classList.remove('swipe-swiping');
+
+      const width = element.offsetWidth || 300;
+      const threshold = Math.min(width * 0.45, 160);
+
+      if (didSwipe && currentX >= threshold) {
+        // Trigger eliminazione: animazione rapida di uscita verso destra
+        element.classList.add('swipe-deleting');
+        element.style.transform = `translateX(${width + 40}px)`;
+        element.style.opacity = '0';
+        bg.style.opacity = '1';
+        try {
+          if (navigator.vibrate) navigator.vibrate(30);
+        } catch (e) {}
+        setTimeout(() => {
+          onDelete(id);
+        }, 250);
+      } else {
+        // Rimbalzo (snap back) alla posizione originale
+        element.classList.add('swipe-snapping');
+        element.style.transform = '';
+        element.style.opacity = '';
+        bg.style.opacity = '0';
+      }
+    }
+
+    // Touch events per smartphone (iOS e Android)
+    element.addEventListener('touchstart', onTouchStart, { passive: true });
+    element.addEventListener('touchmove', onTouchMove, { passive: false });
+    element.addEventListener('touchend', onTouchEnd);
+    element.addEventListener('touchcancel', onTouchEnd);
+
+    // Mouse events per test o uso da PC con mouse
+    let isMouseDown = false;
+    element.addEventListener('mousedown', (e) => {
+      // Ignora clic con tasto destro
+      if (e.button !== 0) return;
+      isMouseDown = true;
+      onTouchStart(e);
+
+      function onMouseMove(ev) {
+        if (!isMouseDown) return;
+        onTouchMove(ev);
+      }
+      function onMouseUp(ev) {
+        if (!isMouseDown) return;
+        isMouseDown = false;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        onTouchEnd();
+      }
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Clic per aprire la modifica solo se non e' stato effettuato uno swipe
+    element.addEventListener('click', (e) => {
+      if (didSwipe) {
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
+      if (onClick) onClick();
     });
   }
 
@@ -1404,7 +1561,9 @@
     container.innerHTML = html;
 
     container.querySelectorAll('.agenda-item').forEach(item => {
-      item.addEventListener('click', () => {
+      attachSwipeToDelete(item, (id) => {
+        deleteEventById(id);
+      }, () => {
         SoundFX.playClick();
         const id = item.getAttribute('data-event-id');
         openEditEventModal(id);
@@ -1541,7 +1700,9 @@
     container.innerHTML = html;
 
     container.querySelectorAll('.agenda-item').forEach(item => {
-      item.addEventListener('click', () => {
+      attachSwipeToDelete(item, (id) => {
+        deleteEventById(id);
+      }, () => {
         SoundFX.playClick();
         const id = item.getAttribute('data-event-id');
         openEditEventModal(id);
