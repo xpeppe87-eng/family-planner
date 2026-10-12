@@ -1841,17 +1841,177 @@
     const list = document.getElementById('placesList');
     if (!list) return;
 
-    list.innerHTML = STATE.places.map(p => `
-      <div class="place-item">
-        <div class="place-left">
-          <h4>${escapeHtml(p.name)}</h4>
-          <p>${escapeHtml(p.address)} ${p.note ? '&bull; ' + escapeHtml(p.note) : ''}</p>
+    if (!Array.isArray(STATE.places) || STATE.places.length === 0) {
+      list.innerHTML = `
+        <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 0.85rem;">
+          Nessun luogo salvato.<br>Aggiungine uno qui sotto! 📍
         </div>
-        <a class="place-map-link" href="https://maps.google.com/?q=${encodeURIComponent(p.address || p.name)}" target="_blank" rel="noopener">
-          Mappa &rarr;
-        </a>
+      `;
+      return;
+    }
+
+    list.innerHTML = STATE.places.map(p => `
+      <div class="place-swipe-wrapper" data-place-id="${p.id}">
+        <div class="place-delete-underlay">
+          <button type="button" class="place-delete-btn" data-delete-place="${p.id}" aria-label="Elimina ${escapeHtml(p.name)}">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            <span>Elimina</span>
+          </button>
+        </div>
+        <div class="place-item-card" data-place-card>
+          <div class="place-left">
+            <h4>${escapeHtml(p.name)}</h4>
+            <p>${escapeHtml(p.address)} ${p.note ? '&bull; ' + escapeHtml(p.note) : ''}</p>
+          </div>
+          <a class="place-map-link" href="https://maps.google.com/?q=${encodeURIComponent(p.address || p.name)}" target="_blank" rel="noopener">
+            Mappa &rarr;
+          </a>
+        </div>
       </div>
     `).join('');
+
+    // Attach Swipe Reveal su ogni luogo
+    list.querySelectorAll('.place-swipe-wrapper').forEach(wrapper => {
+      const card = wrapper.querySelector('[data-place-card]');
+      const deleteBtn = wrapper.querySelector('[data-delete-place]');
+      const placeId = wrapper.getAttribute('data-place-id');
+      if (!card || !deleteBtn) return;
+
+      attachSwipeToReveal(card, wrapper, 90);
+
+      // Clic sul pulsante cestino rivelato
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const place = STATE.places.find(p => p.id === placeId);
+        const name = place ? place.name : 'questo luogo';
+        if (confirm(`Vuoi davvero eliminare "${name}" dalla lista dei luoghi?`)) {
+          wrapper.classList.add('place-wrapper-deleting');
+          setTimeout(() => {
+            deletePlaceById(placeId);
+          }, 240);
+        } else {
+          // Chiudi lo swipe se annulla
+          card.style.transform = 'translateX(0px)';
+        }
+      });
+    });
+  }
+
+  // Helper per eliminare un luogo
+  function deletePlaceById(id) {
+    if (!id) return;
+    const place = STATE.places.find(p => p.id === id);
+    const name = place ? place.name : 'Luogo';
+    STATE.places = STATE.places.filter(p => p.id !== id);
+    saveState();
+    renderPlacesModal();
+    showToast(`Luogo "${name}" rimosso 📍`);
+    SoundFX.playSuccess();
+  }
+
+  // Gesture Swipe to Reveal (sposta verso destra e svela il pulsante senza eliminare in automatico)
+  function attachSwipeToReveal(card, wrapper, revealWidth = 90) {
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let isOpen = false;
+    let isDragging = false;
+    let isHorizontal = null;
+
+    function onStart(e) {
+      const touch = e.touches ? e.touches[0] : e;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      isDragging = true;
+      isHorizontal = null;
+      card.style.transition = 'none';
+    }
+
+    function onMove(e) {
+      if (!isDragging) return;
+      const touch = e.touches ? e.touches[0] : e;
+      const diffX = touch.clientX - startX;
+      const diffY = touch.clientY - startY;
+
+      if (isHorizontal === null) {
+        if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
+          isHorizontal = Math.abs(diffX) > Math.abs(diffY);
+        }
+      }
+
+      if (!isHorizontal) return;
+
+      const base = isOpen ? revealWidth : 0;
+      let targetX = base + diffX;
+
+      // Limita il trascinamento: non puo' andare a sinistra (min 0) e max fino a revealWidth + 30px di elasticita'
+      if (targetX < 0) targetX = 0;
+      if (targetX > revealWidth + 35) targetX = revealWidth + 35;
+
+      if (e.cancelable) e.preventDefault();
+      currentX = targetX;
+      card.style.transform = `translateX(${currentX}px)`;
+    }
+
+    function onEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
+
+      // Soglia per decidere se aprire o chiudere
+      if (currentX >= revealWidth * 0.45) {
+        currentX = revealWidth;
+        isOpen = true;
+        try { if (navigator.vibrate) navigator.vibrate(20); } catch (e) {}
+      } else {
+        currentX = 0;
+        isOpen = false;
+      }
+      card.style.transform = `translateX(${currentX}px)`;
+    }
+
+    // Touch events per smartphone
+    card.addEventListener('touchstart', onStart, { passive: true });
+    card.addEventListener('touchmove', onMove, { passive: false });
+    card.addEventListener('touchend', onEnd);
+    card.addEventListener('touchcancel', onEnd);
+
+    // Mouse drag events per PC
+    let isMouseDown = false;
+    card.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.target.closest('a')) return;
+      isMouseDown = true;
+      onStart(e);
+
+      function onMouseMove(ev) {
+        if (!isMouseDown) return;
+        onMove(ev);
+      }
+      function onMouseUp(ev) {
+        if (!isMouseDown) return;
+        isMouseDown = false;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        onEnd();
+      }
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Se si tocca altrove o si tocca la card quando e' aperta, richiudi
+    card.addEventListener('click', (e) => {
+      if (isOpen && currentX === revealWidth) {
+        if (!e.target.closest('a')) {
+          e.preventDefault();
+          e.stopPropagation();
+          isOpen = false;
+          currentX = 0;
+          card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
+          card.style.transform = 'translateX(0px)';
+        }
+      }
+    });
   }
 
   // --- FAMILY PROFILES CONTROLLER ---
