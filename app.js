@@ -1387,6 +1387,12 @@
       if (e.cancelable) e.preventDefault();
       currentX = targetX;
       didSwipe = true;
+
+      const wrapper = card.closest('.swipe-item-wrapper, .place-swipe-wrapper');
+      if (wrapper && currentX > 4) {
+        wrapper.classList.add('swipe-active');
+      }
+
       card.style.transform = `translateX(${currentX}px)`;
     }
 
@@ -1395,14 +1401,19 @@
       isDragging = false;
       card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
 
+      const wrapper = card.closest('.swipe-item-wrapper, .place-swipe-wrapper');
+      if (wrapper) wrapper.classList.remove('swipe-active');
+
       // Soglia per rivelare o chiudere
       if (currentX >= revealWidth * 0.42) {
         currentX = revealWidth;
         isOpen = true;
+        if (wrapper) wrapper.classList.add('swipe-revealed');
         try { if (navigator.vibrate) navigator.vibrate(20); } catch (e) {}
       } else {
         currentX = 0;
         isOpen = false;
+        if (wrapper) wrapper.classList.remove('swipe-revealed');
       }
       card.style.transform = `translateX(${currentX}px)`;
     }
@@ -1439,11 +1450,13 @@
     // Clic per aprire la card se chiusa, oppure richiudere se gia' aperta
     card.addEventListener('click', (e) => {
       if (e.target.closest('a') || e.target.closest('button')) return;
+      const wrapper = card.closest('.swipe-item-wrapper, .place-swipe-wrapper');
       if (isOpen && currentX === revealWidth) {
         e.preventDefault();
         e.stopPropagation();
         isOpen = false;
         currentX = 0;
+        if (wrapper) wrapper.classList.remove('swipe-revealed');
         card.style.transition = 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)';
         card.style.transform = 'translateX(0px)';
         return;

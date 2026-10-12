@@ -2562,28 +2562,46 @@ input:checked + .slider::before {
 @keyframes installPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(56,189,248,0.55); } 50% { box-shadow: 0 0 0 10px rgba(56,189,248,0); } }
 
 /* Swipe gesture per rivelare il cestino su Impegni e Luoghi */
-.swipe-item-wrapper {
+.swipe-item-wrapper,
+.place-swipe-wrapper {
   position: relative;
   margin-bottom: 10px;
   overflow: hidden;
   border-radius: 16px;
+  background: transparent;
 }
 
-.swipe-delete-underlay {
+.swipe-delete-underlay,
+.place-delete-underlay {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 86px;
+  width: 90px;
   background: linear-gradient(90deg, #dc2626, #ef4444);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1;
   border-radius: 16px 0 0 16px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
 }
 
-.swipe-delete-btn {
+/* Quando l'utente sta trascinando o quando e' rivelato, l'underlay diventa visibile e cliccabile */
+.swipe-item-wrapper.swipe-active .swipe-delete-underlay,
+.place-swipe-wrapper.swipe-active .place-delete-underlay,
+.swipe-item-wrapper.swipe-revealed .swipe-delete-underlay,
+.place-swipe-wrapper.swipe-revealed .place-delete-underlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.swipe-delete-btn,
+.place-delete-btn {
   background: transparent;
   border: none;
   color: #ffffff;
@@ -2603,21 +2621,25 @@ input:checked + .slider::before {
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
-.swipe-delete-btn:hover {
+.swipe-delete-btn:hover,
+.place-delete-btn:hover {
   transform: scale(1.08);
 }
 
-.swipe-delete-btn:active {
+.swipe-delete-btn:active,
+.place-delete-btn:active {
   transform: scale(0.95);
 }
 
-.swipe-delete-btn svg {
+.swipe-delete-btn svg,
+.place-delete-btn svg {
   width: 22px;
   height: 22px;
   fill: currentColor;
 }
 
-.swipe-wrapper-deleting {
+.swipe-wrapper-deleting,
+.place-wrapper-deleting {
   transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin 0.3s ease !important;
   max-height: 0 !important;
   margin-bottom: 0 !important;
@@ -2626,23 +2648,28 @@ input:checked + .slider::before {
   pointer-events: none;
 }
 
-/* Base card con supporto swipe touch e drag */
+/* Card OPACA: copre al 100% l'underlay rosso quando e' chiusa */
 .feed-event-card,
 .agenda-item,
 .place-item-card {
   position: relative;
   z-index: 2;
+  background: #111a2e !important; /* Colore solido opaco del tema dark per coprire lo sfondo */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   will-change: transform;
-  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.2s ease;
+  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.2s ease, border-color 0.2s ease;
 }
 
 .feed-event-card:hover,
 .agenda-item:hover,
 .place-item-card:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: #16223b !important;
+  border-color: rgba(255, 255, 255, 0.2);
 }
+
 
 
