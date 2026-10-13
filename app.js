@@ -71,6 +71,64 @@
     return `${year}-${month}-${day}`;
   }
 
+  // --- MULTI-DAY EVENT HELPERS ---
+  // Restituisce la data finale effettiva dell'impegno (se non impostata o minore, coincide con date)
+  function getEventEndDate(evt) {
+    if (!evt) return '';
+    const start = evt.date || '';
+    const end = evt.endDate || start;
+    return end >= start ? end : start;
+  }
+
+  // Restituisce l'array di tutte le date YYYY-MM-DD comprese tra inizio e fine (estremi inclusi)
+  function getDatesInRange(startStr, endStr) {
+    const dates = [];
+    if (!startStr) return dates;
+    const finalEnd = (!endStr || endStr < startStr) ? startStr : endStr;
+    const [y1, m1, d1] = startStr.split('-').map(Number);
+    const [y2, m2, d2] = finalEnd.split('-').map(Number);
+    const cur = new Date(y1, m1 - 1, d1);
+    const end = new Date(y2, m2 - 1, d2);
+    let count = 0;
+    while (cur <= end && count < 366) {
+      dates.push(toDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+      count++;
+    }
+    return dates;
+  }
+
+  // Verifica se l'impegno ricade nella giornata specificata (dateStr) inclusi estremi
+  function eventOccursOnDate(evt, dateStr) {
+    if (!evt || !evt.date || !dateStr) return false;
+    const start = evt.date;
+    const end = getEventEndDate(evt);
+    return dateStr >= start && dateStr <= end;
+  }
+
+  // Verifica se l'impegno si estende fino a una data futura o coincide con oggi/futuro
+  function eventOccursFromDate(evt, fromDateStr) {
+    if (!evt || !evt.date || !fromDateStr) return false;
+    const end = getEventEndDate(evt);
+    return end >= fromDateStr;
+  }
+
+  // Restituisce etichetta leggibile della data (es. "20 Ott" oppure "20 Ott ➔ 24 Ott")
+  function formatEventDateBadge(evt, currentDateContext) {
+    if (!evt) return '';
+    const start = evt.date;
+    const end = getEventEndDate(evt);
+    if (!end || end === start) {
+      if (currentDateContext && currentDateContext === start) {
+        const todayStr = toDateStr(new Date());
+        return start === todayStr ? 'Oggi' : formatDatePretty(start);
+      }
+      return formatDatePretty(start);
+    }
+    // Impegno multigiorno
+    return `${formatDatePretty(start)} ➔ ${formatDatePretty(end)}`;
+  }
+
   // --- SEED EVENTS FOR IMMEDIATE VIBRANT EXPERIENCE ---
   function getSeedEvents() {
     const today = new Date();
@@ -703,7 +761,7 @@
     } else {
       memberEntries.forEach(m => {
         const isSelected = STATE.activeFilter === m.id;
-        const count = STATE.events.filter(e => e.date >= todayStr && Array.isArray(e.members) && e.members.includes(m.id)).length;
+        const count = STATE.events.filter(e => eventOccursFromDate(e, todayStr) && Array.isArray(e.members) && e.members.includes(m.id)).length;
         const ringClass = m.ringClass || '';
         const customStyle = m.color ? `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 ${isSelected ? '22px' : '14px'} ${m.color}80;` : '';
         const activeDotStyle = m.color ? `background: ${m.color}; box-shadow: 0 0 8px ${m.color};` : '';
@@ -1116,7 +1174,7 @@
 
   // --- CONFLICT DETECTION LOGIC ---
   function findConflictsForDate(dateStr) {
-    const dayEvents = STATE.events.filter(e => e.date === dateStr);
+    const dayEvents = STATE.events.filter(e => eventOccursOnDate(e, dateStr));
     const conflicts = [];
 
     // Helper to convert time "HH:MM" to minutes
@@ -1194,8 +1252,8 @@
     });
 
     STATE.events.forEach(evt => {
-      // Count today or future events
-      if (evt.date >= todayStr && Array.isArray(evt.members)) {
+      // Count today or future events (active if today or end date >= today)
+      if (eventOccursFromDate(evt, todayStr) && Array.isArray(evt.members)) {
         evt.members.forEach(m => {
           if (counts[m] !== undefined) counts[m]++;
         });
@@ -1213,7 +1271,7 @@
   // Update Today Banner
   function updateTodayBanner() {
     const todayStr = toDateStr(new Date());
-    let todayEvents = STATE.events.filter(e => e.date === todayStr);
+    let todayEvents = STATE.events.filter(e => eventOccursOnDate(e, todayStr));
 
     if (STATE.activeFilter !== 'all') {
       todayEvents = todayEvents.filter(e => e.members.includes(STATE.activeFilter));
@@ -1242,7 +1300,7 @@
     if (!feed) return;
 
     const todayStr = toDateStr(new Date());
-    let events = STATE.events.filter(e => e.date >= todayStr);
+    let events = STATE.events.filter(e => eventOccursFromDate(e, todayStr));
 
     if (STATE.activeFilter !== 'all') {
       events = events.filter(e => e.members.includes(STATE.activeFilter));
@@ -1270,8 +1328,11 @@
         return `<img src="${m.avatar}" class="f-avatar-mini" alt="${escapeHtml(m.name)}" title="${escapeHtml(m.name)}">`;
       }).filter(Boolean).join('') : '';
 
-      const isToday = evt.date === todayStr;
-      const dateDisplay = isToday ? 'Oggi' : formatDatePretty(evt.date);
+      const isToday = eventOccursOnDate(evt, todayStr);
+      const isMulti = getEventEndDate(evt) !== evt.date;
+      const dateDisplay = isMulti 
+        ? `${formatDatePretty(evt.date)} ➔ ${formatDatePretty(getEventEndDate(evt))}`
+        : (isToday ? 'Oggi' : formatDatePretty(evt.date));
 
       return `
         <div class="swipe-item-wrapper" data-event-id="${evt.id}">
@@ -1521,11 +1582,14 @@
       return;
     }
 
-    // Group events by date
+    // Group events by date, expanding multi-day events across all their spanned dates
     const groups = {};
     events.forEach(evt => {
-      if (!groups[evt.date]) groups[evt.date] = [];
-      groups[evt.date].push(evt);
+      const dates = getDatesInRange(evt.date, getEventEndDate(evt));
+      dates.forEach(dStr => {
+        if (!groups[dStr]) groups[dStr] = [];
+        groups[dStr].push(evt);
+      });
     });
 
     const todayStr = toDateStr(new Date());
@@ -1538,6 +1602,9 @@
       html += `<div class="agenda-day-group">`;
       html += `<div class="agenda-date-heading" style="${isToday ? 'color: #38bdf8;' : ''}">${headingText}</div>`;
 
+      // Sort events in this day by startTime
+      groups[dateStr].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '') || a.title.localeCompare(b.title));
+
       groups[dateStr].forEach(evt => {
         const avatars = Array.isArray(evt.members) ? evt.members.map(mId => {
           const m = FAMILY_MEMBERS[mId];
@@ -1547,6 +1614,11 @@
 
         const firstValidId = Array.isArray(evt.members) ? evt.members.find(mId => FAMILY_MEMBERS[mId]) : null;
         const mainColor = firstValidId && FAMILY_MEMBERS[firstValidId] ? FAMILY_MEMBERS[firstValidId].color : '#38bdf8';
+
+        const isMulti = getEventEndDate(evt) !== evt.date;
+        const multiBadge = isMulti
+          ? `<span class="event-multiday-badge">📅 ${formatDatePretty(evt.date)} ➔ ${formatDatePretty(getEventEndDate(evt))}</span>`
+          : '';
 
         html += `
           <div class="swipe-item-wrapper" data-event-id="${evt.id}">
@@ -1560,7 +1632,10 @@
               <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="width: 4px; height: 34px; border-radius: 4px; background: ${mainColor};"></div>
                 <div>
-                  <strong style="color: #fff; font-size: 0.88rem;">${escapeHtml(evt.title)}</strong>
+                  <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+                    <strong style="color: #fff; font-size: 0.88rem;">${escapeHtml(evt.title)}</strong>
+                    ${multiBadge}
+                  </div>
                   <div style="font-size: 0.75rem; color: var(--text-secondary); display: flex; gap: 8px;">
                     <span>🕒 ${evt.startTime}${evt.endTime ? ' - ' + evt.endTime : ''}</span>
                     <span>📍 ${escapeHtml(evt.place || 'Casa')}</span>
@@ -1642,8 +1717,8 @@
       const isToday = curDateStr === todayStr;
       const isSelected = curDateStr === STATE.selectedDate;
 
-      // Filter events
-      let dayEvents = STATE.events.filter(e => e.date === curDateStr);
+      // Filter events (inclusi impegni multigiorno che ricadono in questa data)
+      let dayEvents = STATE.events.filter(e => eventOccursOnDate(e, curDateStr));
       if (STATE.activeFilter !== 'all') {
         dayEvents = dayEvents.filter(e => e.members.includes(STATE.activeFilter));
       }
@@ -1699,7 +1774,7 @@
     if (!container) return;
 
     const dayStr = STATE.selectedDate || toDateStr(new Date());
-    let dayEvents = STATE.events.filter(e => e.date === dayStr);
+    let dayEvents = STATE.events.filter(e => eventOccursOnDate(e, dayStr));
 
     if (STATE.activeFilter !== 'all') {
       dayEvents = dayEvents.filter(e => e.members.includes(STATE.activeFilter));
@@ -1717,6 +1792,12 @@
           const m = FAMILY_MEMBERS[mId];
           return m ? `<img src="${m.avatar}" class="f-avatar-mini" alt="${escapeHtml(m.name)}" title="${escapeHtml(m.name)}">` : '';
         }).filter(Boolean).join('') : '';
+
+        const isMulti = getEventEndDate(evt) !== evt.date;
+        const multiBadge = isMulti
+          ? `<span class="event-multiday-badge">📅 ${formatDatePretty(evt.date)} ➔ ${formatDatePretty(getEventEndDate(evt))}</span>`
+          : '';
+
         html += `
           <div class="swipe-item-wrapper" data-event-id="${evt.id}">
             <div class="swipe-delete-underlay">
@@ -1727,7 +1808,10 @@
             </div>
             <div class="agenda-item" data-event-id="${evt.id}">
               <div>
-                <strong style="color: #fff;">${escapeHtml(evt.title)}</strong>
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+                  <strong style="color: #fff;">${escapeHtml(evt.title)}</strong>
+                  ${multiBadge}
+                </div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
                   Ore ${evt.startTime}${evt.endTime ? ' - ' + evt.endTime : ''} &bull; ${escapeHtml(evt.place || 'Casa')}
                 </div>
@@ -1778,7 +1862,13 @@
     document.getElementById('deleteEventBtn').style.display = 'none';
 
     // Preset Date
-    document.getElementById('eventDate').value = presetDate || toDateStr(new Date());
+    const initialDate = presetDate || toDateStr(new Date());
+    document.getElementById('eventDate').value = initialDate;
+    const endDateInput = document.getElementById('eventEndDate');
+    if (endDateInput) {
+      endDateInput.value = '';
+      endDateInput.min = initialDate;
+    }
     document.getElementById('eventStartTime').value = '16:30';
     document.getElementById('eventEndTime').value = '17:30';
 
@@ -1810,6 +1900,11 @@
 
     document.getElementById('eventTitle').value = evt.title;
     document.getElementById('eventDate').value = evt.date;
+    const editEndDateInput = document.getElementById('eventEndDate');
+    if (editEndDateInput) {
+      editEndDateInput.value = (evt.endDate && evt.endDate !== evt.date) ? evt.endDate : '';
+      editEndDateInput.min = evt.date;
+    }
     document.getElementById('eventStartTime').value = evt.startTime;
     document.getElementById('eventEndTime').value = evt.endTime || '';
     document.getElementById('eventDriver').value = evt.driver || '';
@@ -1856,7 +1951,7 @@
     const conflictsSection = document.getElementById('analyzerConflictsSection');
     const recoSection = document.getElementById('analyzerRecommendations');
 
-    const dayEvents = STATE.events.filter(e => e.date === dateStr);
+    const dayEvents = STATE.events.filter(e => eventOccursOnDate(e, dateStr));
     dayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     if (conflicts.length > 0) {
@@ -1979,7 +2074,7 @@
     const todayStr = toDateStr(new Date());
 
     list.innerHTML = Object.values(FAMILY_MEMBERS).map(m => {
-      const activeCount = STATE.events.filter(e => e.date >= todayStr && Array.isArray(e.members) && e.members.includes(m.id)).length;
+      const activeCount = STATE.events.filter(e => eventOccursFromDate(e, todayStr) && Array.isArray(e.members) && e.members.includes(m.id)).length;
       const ringStyle = m.color ? `border-color: ${m.color}; color: ${m.color}; box-shadow: 0 0 10px ${m.color}66;` : '';
       return `
         <div class="profile-item-card" data-member-id="${m.id}">
@@ -2117,7 +2212,7 @@
     const url = GITHUB_PAGES_URL;
     const wifiUrl = currentShareMode === 'wifi' ? await getWifiShareUrl() : null;
     const todayStr = toDateStr(new Date());
-    const todayEvents = STATE.events.filter(e => e.date === todayStr);
+    const todayEvents = STATE.events.filter(e => eventOccursOnDate(e, todayStr));
 
     let msg = `🏡 *Family Planner - La nostra famiglia*\n\n`;
     msg += `📲 *Apri l'app dal tuo cellulare (iPhone / Android):*\n${url}\n\n`;
@@ -2129,7 +2224,9 @@
       todayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
       todayEvents.forEach(e => {
         const names = Array.isArray(e.members) ? e.members.map(m => FAMILY_MEMBERS[m]?.name || 'Membro').join(', ') : '';
-        msg += `⏰ *${e.startTime}* - *${e.title}* (${names})\n`;
+        const isMulti = getEventEndDate(e) !== e.date;
+        const rangeText = isMulti ? ` [📅 ${formatDatePretty(e.date)} ➔ ${formatDatePretty(getEventEndDate(e))}]` : '';
+        msg += `⏰ *${e.startTime}* - *${e.title}* (${names})${rangeText}\n`;
         if (e.place) msg += `📍 ${e.place}\n`;
       });
     }
@@ -2424,6 +2521,17 @@
       }
     });
 
+    // Sincronizza min su data fine quando cambia la data inizio
+    document.getElementById('eventDate')?.addEventListener('change', (e) => {
+      const endDateInput = document.getElementById('eventEndDate');
+      if (endDateInput) {
+        endDateInput.min = e.target.value;
+        if (endDateInput.value && endDateInput.value < e.target.value) {
+          endDateInput.value = e.target.value;
+        }
+      }
+    });
+
     // Event Form Submit (Add / Save)
     document.getElementById('eventForm')?.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -2431,6 +2539,8 @@
       const eventId = document.getElementById('eventId').value;
       const title = document.getElementById('eventTitle').value.trim();
       const date = document.getElementById('eventDate').value;
+      const rawEndDate = document.getElementById('eventEndDate')?.value || '';
+      const endDate = (rawEndDate && rawEndDate >= date) ? rawEndDate : '';
       const startTime = document.getElementById('eventStartTime').value;
       const endTime = document.getElementById('eventEndTime').value;
       const driver = document.getElementById('eventDriver').value;
@@ -2457,7 +2567,7 @@
         if (idx !== -1) {
           STATE.events[idx] = {
             ...STATE.events[idx],
-            title, date, startTime, endTime, members: checkedMembers, place, driver, category: activeCat, notes
+            title, date, endDate, startTime, endTime, members: checkedMembers, place, driver, category: activeCat, notes
           };
           showToast('Impegno aggiornato con successo! ✨');
         }
@@ -2465,7 +2575,7 @@
         // Create new
         const newEvt = {
           id: 'evt-' + Date.now(),
-          title, date, startTime, endTime, members: checkedMembers, place, driver, category: activeCat, notes
+          title, date, endDate, startTime, endTime, members: checkedMembers, place, driver, category: activeCat, notes
         };
         STATE.events.push(newEvt);
         showToast('Nuovo impegno salvato e sincronizzato! 🗓️');
